@@ -1,0 +1,6 @@
+usr/local/bin/neodash-qt usr/bin
+share/pixmaps/neodash32.xpm usr/share/pixmaps
+share/pixmaps/neodash16.xpm usr/share/pixmaps
+share/pixmaps/neodash128.png usr/share/pixmaps
+debian/neodash-qt.desktop usr/share/applications
+debian/neodash-qt.protocol usr/share/kde4/services/

@@ -1,0 +1,67 @@
+#!/bin/bash
+#
+#  neodashd The neodash core server.
+#
+#
+# chkconfig: 345 80 20
+# description: neodashd
+# processname: neodashd
+#
+
+# Source function library.
+. /etc/init.d/functions
+
+# you can override defaults in /etc/sysconfig/neodashd, see below
+if [ -f /etc/sysconfig/neodashd ]; then
+        . /etc/sysconfig/neodashd
+fi
+
+RETVAL=0
+
+prog=neodashd
+# you can override the lockfile via BITCOIND_LOCKFILE in /etc/sysconfig/neodashd
+lockfile=${BITCOIND_LOCKFILE-/var/lock/subsys/neodashd}
+
+# neodashd defaults to /usr/bin/neodashd, override with BITCOIND_BIN
+neodashd=${BITCOIND_BIN-/usr/bin/neodashd}
+
+# neodashd opts default to -disablewallet, override with BITCOIND_OPTS
+neodashd_opts=${BITCOIND_OPTS--disablewallet}
+
+start() {
+    echo -n $"Starting $prog: "
+    daemon $DAEMONOPTS $neodashd $neodashd_opts
+    RETVAL=$?
+    echo
+    [ $RETVAL -eq 0 ] && touch $lockfile
+    return $RETVAL
+}
+
+stop() {
+    echo -n $"Stopping $prog: "
+    killproc $prog
+    RETVAL=$?
+    echo
+    [ $RETVAL -eq 0 ] && rm -f $lockfile
+    return $RETVAL
+}
+
+case "$1" in
+    start)
+        start
+        ;;
+    stop)
+        stop
+        ;;
+    status)
+        status $prog
+        ;;
+    restart)
+        stop
+        start
+        ;;
+    *)
+        echo "Usage: service $prog {start|stop|status|restart}"
+        exit 1
+        ;;
+esac

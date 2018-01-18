@@ -1,0 +1,12 @@
+[Desktop Entry]
+Encoding=UTF-8
+Name=Neodash
+Comment=Neodash P2P Cryptocurrency
+Comment[fr]=Neodash, monnaie virtuelle cryptographique pair à pair
+Comment[tr]=Neodash, eşten eşe kriptografik sanal para birimi
+Exec=neodash-qt %u
+Terminal=false
+Type=Application
+Icon=neodash128
+MimeType=x-scheme-handler/neodash;
+Categories=Office;Finance;

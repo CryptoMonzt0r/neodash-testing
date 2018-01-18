@@ -1,0 +1,20 @@
+<!DOCTYPE RCC><RCC version="1.0">
+    <qresource prefix="/translations">
+        <file alias="bg">locale/neodash_bg.qm</file>
+        <file alias="de">locale/neodash_de.qm</file>
+        <file alias="en">locale/neodash_en.qm</file>
+        <file alias="es">locale/neodash_es.qm</file>
+        <file alias="fi">locale/neodash_fi.qm</file>
+        <file alias="fr">locale/neodash_fr.qm</file>
+        <file alias="it">locale/neodash_it.qm</file>
+        <file alias="ja">locale/neodash_ja.qm</file>
+        <file alias="pl">locale/neodash_pl.qm</file>
+        <file alias="pt">locale/neodash_pt.qm</file>
+        <file alias="ru">locale/neodash_ru.qm</file>
+        <file alias="sk">locale/neodash_sk.qm</file>
+        <file alias="sv">locale/neodash_sv.qm</file>
+        <file alias="vi">locale/neodash_vi.qm</file>
+        <file alias="zh_CN">locale/neodash_zh_CN.qm</file>
+        <file alias="zh_TW">locale/neodash_zh_TW.qm</file>
+    </qresource>
+</RCC>

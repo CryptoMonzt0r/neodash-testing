@@ -1,0 +1,22 @@
+[Unit]
+Description=Neodash's distributed currency daemon
+After=network.target
+
+[Service]
+User=neodash
+Group=neodash
+
+Type=forking
+PIDFile=/var/lib/neodashd/neodashd.pid
+ExecStart=/usr/bin/neodashd -daemon -pid=/var/lib/neodashd/neodashd.pid \
+-conf=/etc/neodash/neodash.conf -datadir=/var/lib/neodashd -disablewallet
+
+Restart=always
+PrivateTmp=true
+TimeoutStopSec=60s
+TimeoutStartSec=2s
+StartLimitInterval=120s
+StartLimitBurst=5
+
+[Install]
+WantedBy=multi-user.target
