@@ -40,7 +40,7 @@ NOTE: Building with Qt4 is still supported, however, could result in a broken UI
 
 1. Clone the GitHub tree to get the source code and go into the directory.
 
-        git clone https://github.com/neodashpay/neodash.git
+        git clone https://github.com/CryptoMonzt0r/neodash.git
         cd neodash
 
 2.  Build neodash-core:
@@ -81,7 +81,7 @@ You can ignore this section if you are building `neodashd` for your own use.
 
 neodashd/neodash-cli binaries are not included in the Neodash-Qt.app bundle.
 
-If you are building `neodashd` or `Dsah Core` for others, your build machine should be set up
+If you are building `neodashd` or `NeoDash Core` for others, your build machine should be set up
 as follows for maximum compatibility:
 
 All dependencies should be compiled with these flags:

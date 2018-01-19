@@ -22,7 +22,7 @@ env:
     - CCACHE_TEMPDIR=/tmp/.ccache-temp
     - CCACHE_COMPRESS=1
     - BASE_OUTDIR=$TRAVIS_BUILD_DIR/out
-    - SDK_URL=https://neodash.org/depends-sources/sdks
+    - SDK_URL=https://dash.org/depends-sources/sdks
     - PYTHON_DEBUG=1
     - WINEDEBUG=fixme-all
 cache:
@@ -92,7 +92,7 @@ matrix:
   exclude:
     - compiler: gcc
 before_install:
-    - git clone https://github.com/neodashpay/neodash_hash
+    - git clone https://github.com/dashpay/dash_hash
 install:
     - cd neodash_hash && python setup.py install --user && cd ..
     - if [ "$PYZMQ" = "true" ]; then pip install pyzmq --user ; fi

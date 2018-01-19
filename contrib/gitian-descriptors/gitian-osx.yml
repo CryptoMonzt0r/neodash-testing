@@ -1,5 +1,5 @@
 ---
-name: "neodash-osx-0.12"
+name: "neodash-osx-1.0.0.0"
 enable_cache: true
 suites:
 - "trusty"

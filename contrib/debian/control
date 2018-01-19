@@ -1,8 +1,8 @@
 Source: neodash
 Section: utils
 Priority: optional
-Maintainer: Holger Schinzel <holger@neodash.org>
-Uploaders: Holger Schinzel <holger@neodash.org>
+Maintainer: Holger Schinzel <holger@dash.org>
+Uploaders: Holger Schinzel <holger@dash.org>
 Build-Depends: debhelper,
  devscripts,
  automake,
@@ -24,9 +24,9 @@ Build-Depends: debhelper,
  libprotobuf-dev, protobuf-compiler,
  python
 Standards-Version: 3.9.2
-Homepage: https://www.neodash.org/
-Vcs-Git: git://github.com/neodashpay/neodash.git
-Vcs-Browser: https://github.com/neodashpay/neodash
+Homepage: https://www.neodash.io/
+Vcs-Git: git://github.com/CryptoMonzt0r/neodash.git
+Vcs-Browser: https://github.com/CryptoMonzt0r/neodash
 
 Package: neodashd
 Architecture: any

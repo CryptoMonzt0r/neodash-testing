@@ -1,7 +1,7 @@
 Release Process
 ====================
 
-* Update translations, see [translation_process.md](https://github.com/neodashpay/neodash/blob/master/doc/translation_process.md#syncing-with-transifex)
+* Update translations, see [translation_process.md]
 * Update hardcoded [seeds](/contrib/seeds)
 
 * * *
@@ -10,10 +10,10 @@ Release Process
 Check out the source code in the following directory hierarchy.
 
 	cd /path/to/your/toplevel/build
-	git clone https://github.com/neodashpay/gitian.sigs.git
-	git clone https://github.com/neodashpay/neodash-detached-sigs.git
+	git clone https://github.com/CryptoMonzt0r/gitian.sigs.git
+	git clone https://github.com/CryptoMonzt0r/neodash-detached-sigs.git
 	git clone https://github.com/devrandom/gitian-builder.git
-	git clone https://github.com/neodashpay/neodash.git
+	git clone https://github.com/CryptoMonzt0r/neodash.git
 
 ###Neodash maintainers/release engineers, update (commit) version in sources
 
@@ -27,11 +27,11 @@ Check out the source code in the following directory hierarchy.
 
 	# tag version in git
 
-	git tag -s v(new version, e.g. 0.8.0)
+	git tag -s v(new version, e.g. 1.0.0.1)
 
 	# write release notes. git shortlog helps a lot, for example:
 
-	git shortlog --no-merges v(current version, e.g. 0.7.2)..v(new version, e.g. 0.8.0)
+	git shortlog --no-merges v(current version, e.g. 1.0.0.0)..v(new version, e.g. 1.0.0.1)
 	popd
 
 * * *
@@ -42,7 +42,7 @@ Check out the source code in the following directory hierarchy.
 
 	pushd ./neodash
 	export SIGNER=(your Gitian key, ie bluematt, sipa, etc)
-	export VERSION=(new version, e.g. 0.8.0)
+	export VERSION=(new version, e.g. 1.0.0.1)
 	git fetch
 	git checkout v${VERSION}
 	popd
@@ -139,7 +139,7 @@ Commit your signature to gitian.sigs:
 
   Wait for Windows/OS X detached signatures:
 	Once the Windows/OS X builds each have 3 matching signatures, they will be signed with their respective release keys.
-	Detached signatures will then be committed to the [neodash-detached-sigs](https://github.com/neodashpay/neodash-detached-sigs) repository, which can be combined with the unsigned apps to create signed binaries.
+	Detached signatures will then be committed to the [neodash-detached-sigs](https://github.com/CryptoMonzt0r/neodash-detached-sigs) repository, which can be combined with the unsigned apps to create signed binaries.
 
   Create (and optionally verify) the signed OS X binary:
 
@@ -182,21 +182,11 @@ rm SHA256SUMS
 (the digest algorithm is forced to sha256 to avoid confusion of the `Hash:` header that GPG adds with the SHA256 used for the files)
 Note: check that SHA256SUMS itself doesn't end up in SHA256SUMS, which is a spurious/nonsensical entry.
 
-- Upload zips and installers, as well as `SHA256SUMS.asc` from last step, to the neodash.org server
+- Upload zips and installers, as well as `SHA256SUMS.asc` from last step, to the neodash.io server
 
-- Update neodash.org
+- Update neodash.io
 
 - Announce the release:
-
-  - Release sticky on neodashtalk: https://neodashtalk.org/index.php?board=1.0 ***TODO***
-
-  - Neodash-development mailing list
-
-  - Update title of #neodashpay on Freenode IRC
-
-  - Optionally reddit /r/Neodashpay, ... but this will usually sort out itself
-
-- Notify flare so that he can start building [the PPAs](https://launchpad.net/~neodash.org/+archive/ubuntu/neodash)
 
 - Add release notes for the new version to the directory `doc/release-notes` in git master
 

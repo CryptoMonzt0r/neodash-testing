@@ -1,7 +1,7 @@
-Neodash Core 0.12.1
+Neodash Core v1.0.0.0
 =====================
 
-This is the official reference wallet for Neodash digital currency and comprises the backbone of the Neodash peer-to-peer network. You can [download Neodash Core](https://www.neodash.org/downloads/) or [build it yourself](#building) using the guides below.
+This is the official reference wallet for Neodash digital currency and comprises the backbone of the Neodash peer-to-peer network. You can [download Neodash Core](https://github.com/CryptoMonzt0r/neodash/releases) or [build it yourself](#building) using the guides below.
 
 Running
 ---------------------
@@ -30,10 +30,10 @@ Drag Neodash-Core to your applications folder, and then run Neodash-Core.
 
 ### Need Help?
 
-* See the [Neodash documentation](https://neodashpay.atlassian.net/wiki/display/DOC)
+* See the [Neodash documentation](https://dashpay.atlassian.net/wiki/display/DOC)
 for help and more information.
-* Ask for help on [#neodashpay](http://webchat.freenode.net?channels=neodashpay) on Freenode. If you don't have an IRC client use [webchat here](http://webchat.freenode.net?channels=neodashpay).
-* Ask for help on the [NeodashTalk](https://neodashtalk.org/) forums.
+* Ask for help on [#dashpay](http://webchat.freenode.net?channels=dashpay) on Freenode. If you don't have an IRC client use [webchat here](http://webchat.freenode.net?channels=dashpay).
+* Ask for help on the [dashTalk](https://dashtalk.org/) forums.
 
 Building
 ---------------------
@@ -63,8 +63,8 @@ The Neodash repo's [root README](/README.md) contains relevant information on th
 - [Dnsseed Policy](dnsseed-policy.md)
 
 ### Resources
-* Discuss on the [NeodashTalk](https://neodashtalk.org/) forums, in the Development & Technical Discussion board.
-* Discuss on [#neodashpay](http://webchat.freenode.net/?channels=neodashpay) on Freenode. If you don't have an IRC client use [webchat here](http://webchat.freenode.net/?channels=neodashpay).
+* Discuss on the [NeodashTalk](https://dashtalk.org/) forums, in the Development & Technical Discussion board.
+* Discuss on [#dashpay](http://webchat.freenode.net/?channels=dashpay) on Freenode. If you don't have an IRC client use [webchat here](http://webchat.freenode.net/?channels=#dashpay).
 
 ### Miscellaneous
 - [Assets Attribution](assets-attribution.md)
