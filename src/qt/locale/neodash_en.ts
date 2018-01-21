@@ -4835,10 +4835,15 @@ for example: alertnotify=echo %%s | mail -s &quot;Neodash Alert&quot; admin@foo.
         <source>Copyright (C) 2009-%i The Bitcoin Core Developers</source>
         <translation>Copyright (C) 2009-%i The Bitcoin Core Developers</translation>
     </message>
+	<message>
+        <location line="+1"/>
+        <source>Copyright (C) 2014-%i The Dash Core Developers</source>
+        <translation>Copyright (C) 2014-%i The Dash Core Developers</translation>
+    </message>
     <message>
         <location line="+1"/>
-        <source>Copyright (C) 2014-%i The Neodash Core Developers</source>
-        <translation>Copyright (C) 2014-%i The Neodash Core Developers</translation>
+        <source>Copyright (C) 2017-%i The Neodash Core Developers</source>
+        <translation>Copyright (C) 2017-%i The Neodash Core Developers</translation>
     </message>
     <message>
         <location line="+2"/>

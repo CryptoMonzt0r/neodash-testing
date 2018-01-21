@@ -6,6 +6,8 @@ Source: https://github.com/bitcoin/bitcoin
 
 Files: *
 Copyright: 2009-2016, Bitcoin Core Developers
+Copyright (c) 2014-2017 The Dash Core developers
+Copyright (c) 2017-2018 The Neodash Core developers
 License: Expat
 Comment: The Bitcoin Core Developers encompasses the current developers listed on bitcoin.org,
          as well as the numerous contributors to the project.

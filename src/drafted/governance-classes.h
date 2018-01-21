@@ -1,4 +1,5 @@
-// Copyright (c) 2014-2016 The Neodash Core developers
+// Copyright (c) 2014-2017 The Dash Core developers
+// Copyright (c) 2017-2018 The Neodash Core developers
 
 /*
  * FIELDS AND CLASSIFICATION
@@ -117,7 +118,7 @@ private:
     int nLevel;
     std::string strCategory;
 
-    // Current OBJECT STATUS (see http://govman.neodash.org/index.php/Documentation_:_Status_Field)
+    // Current OBJECT STATUS (see http://govman.dash.org/index.php/Documentation_:_Status_Field)
     int nStatusID;
     std::string strStatusMessage;
 

@@ -3798,9 +3798,13 @@ Zaleca się również aby ustawić alarm powiadomień tzw. alertnotify, aby dać
         <source>Copyright (C) 2009-%i The Bitcoin Core Developers</source>
         <translation>Prawo autorskie (c) 2009-%i deweloperzy Bitcoin</translation>
     </message>
+	<message>
+        <source>Copyright (C) 2014-%i The Dash Core Developers</source>
+        <translation>Prawa autorskie (C) 2014-%i deweloperzy Dash</translation>
+    </message>
     <message>
-        <source>Copyright (C) 2014-%i The Neodash Core Developers</source>
-        <translation>Prawa autorskie (C) 2014-%i deweloperzy Neodash</translation>
+        <source>Copyright (C) 2017-%i The Neodash Core Developers</source>
+        <translation>Prawa autorskie (C) 2017-%i deweloperzy Neodash</translation>
     </message>
     <message>
         <source>Could not parse -rpcbind value %s as network address</source>

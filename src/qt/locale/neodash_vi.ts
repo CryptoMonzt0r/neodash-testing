@@ -3798,9 +3798,13 @@ ví dụ: alertnotify=echo %%s | mail -s "Neodash Alert" admin@foo.com
         <source>Copyright (C) 2009-%i The Bitcoin Core Developers</source>
         <translation>Bản quyền (C) 2009-%i bởi Nhóm phát triển Bitcoin Core</translation>
     </message>
+	<message>
+        <source>Copyright (C) 2014-%i The Dash Core Developers</source>
+        <translation>Bản quyền (C) 2014-%i bởi Nhóm phát triển Dash Core</translation>
+    </message>
     <message>
-        <source>Copyright (C) 2014-%i The Neodash Core Developers</source>
-        <translation>Bản quyền (C) 2014-%i bởi Nhóm phát triển Neodash Core</translation>
+        <source>Copyright (C) 2017-%i The Neodash Core Developers</source>
+        <translation>Bản quyền (C) 2017-%i bởi Nhóm phát triển Neodash Core</translation>
     </message>
     <message>
         <source>Could not parse -rpcbind value %s as network address</source>
