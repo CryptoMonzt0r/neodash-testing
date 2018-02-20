@@ -1,6 +1,6 @@
 // Copyright (c) 2009-2010 Satoshi Nakamoto
 // Copyright (c) 2009-2015 The Bitcoin Core developers
-// Copyright (c) 2014-2016 The Neodash Core developers
+// Copyright (c) 2017 The Neodash Core developers
 // Distributed under the MIT software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
@@ -30,28 +30,26 @@
 #include <boost/signals2/signal.hpp>
 #include <boost/thread/exceptions.hpp>
 
+// Debugging macros
+
+// Uncomment the following line to enable debugging messages
+// or enable on a per file basis prior to inclusion of util.h
+//#define ENABLE_NEODASH_DEBUG
+#ifdef ENABLE_NEODASH_DEBUG
+#define DBG( x ) x
+#else
+#define DBG( x ) 
+#endif
+
 //Neodash only features
 
 extern bool fMasterNode;
 extern bool fLiteMode;
-extern bool fEnableInstantSend;
-extern int nInstantSendDepth;
-extern int nPrivateSendRounds;
-extern int nAnonymizeNeodashAmount;
-extern int nLiquidityProvider;
 extern int nWalletBackups;
-extern bool fEnablePrivateSend;
-extern bool fPrivateSendMultiSession;
-extern int64_t enforceMasternodePaymentsTime;
-extern std::string strMasterNodeAddr;
-extern int keysLoaded;
-extern bool fSucessfullyLoaded;
-extern std::vector<CAmount> darkSendDenominations;
-extern std::string strBudgetMode;
 
-static const bool DEFAULT_LOGTIMEMICROS = false;
-static const bool DEFAULT_LOGIPS        = false;
-static const bool DEFAULT_LOGTIMESTAMPS = true;
+static const bool DEFAULT_LOGTIMEMICROS  = false;
+static const bool DEFAULT_LOGIPS         = false;
+static const bool DEFAULT_LOGTIMESTAMPS  = true;
 static const bool DEFAULT_LOGTHREADNAMES = false;
 
 /** Signals for translation. */
@@ -272,5 +270,34 @@ template <typename Callable> void TraceThread(const char* name,  Callable func)
         throw;
     }
 }
+
+
+/**
+ * @brief Converts version strings to 4-byte unsigned integer
+ * @param strVersion version in "x.x.x" format (decimal digits only)
+ * @return 4-byte unsigned integer, most significant byte is always 0
+ * Throws std::bad_cast if format doesn\t match.
+ */
+uint32_t StringVersionToInt(const std::string& strVersion);
+
+
+/**
+ * @brief Converts version as 4-byte unsigned integer to string
+ * @param nVersion 4-byte unsigned integer, most significant byte is always 0
+ * @return version string in "x.x.x" format (last 3 bytes as version parts)
+ * Throws std::bad_cast if format doesn\t match.
+ */
+std::string IntVersionToString(uint32_t nVersion);
+
+
+/**
+ * @brief Copy of the IntVersionToString, that returns "Invalid version" string
+ * instead of throwing std::bad_cast
+ * @param nVersion 4-byte unsigned integer, most significant byte is always 0
+ * @return version string in "x.x.x" format (last 3 bytes as version parts)
+ * or "Invalid version" if can't cast the given value
+ */
+std::string SafeIntVersionToString(uint32_t nVersion);
+
 
 #endif // BITCOIN_UTIL_H

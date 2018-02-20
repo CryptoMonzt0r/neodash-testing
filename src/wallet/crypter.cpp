@@ -58,15 +58,19 @@ bool CCrypter::Encrypt(const CKeyingMaterial& vchPlaintext, std::vector<unsigned
     int nCLen = nLen + AES_BLOCK_SIZE, nFLen = 0;
     vchCiphertext = std::vector<unsigned char> (nCLen);
 
-    EVP_CIPHER_CTX ctx;
+    EVP_CIPHER_CTX *ctx = EVP_CIPHER_CTX_new();
+
+    if (!ctx) return false;
 
     bool fOk = true;
 
-    EVP_CIPHER_CTX_init(&ctx);
-    if (fOk) fOk = EVP_EncryptInit_ex(&ctx, EVP_aes_256_cbc(), NULL, chKey, chIV) != 0;
-    if (fOk) fOk = EVP_EncryptUpdate(&ctx, &vchCiphertext[0], &nCLen, &vchPlaintext[0], nLen) != 0;
-    if (fOk) fOk = EVP_EncryptFinal_ex(&ctx, (&vchCiphertext[0]) + nCLen, &nFLen) != 0;
-    EVP_CIPHER_CTX_cleanup(&ctx);
+    EVP_CIPHER_CTX_init(ctx);
+    if (fOk) fOk = EVP_EncryptInit_ex(ctx, EVP_aes_256_cbc(), NULL, chKey, chIV) != 0;
+    if (fOk) fOk = EVP_EncryptUpdate(ctx, &vchCiphertext[0], &nCLen, &vchPlaintext[0], nLen) != 0;
+    if (fOk) fOk = EVP_EncryptFinal_ex(ctx, (&vchCiphertext[0]) + nCLen, &nFLen) != 0;
+    EVP_CIPHER_CTX_cleanup(ctx);
+
+    EVP_CIPHER_CTX_free(ctx);
 
     if (!fOk) return false;
 
@@ -85,15 +89,19 @@ bool CCrypter::Decrypt(const std::vector<unsigned char>& vchCiphertext, CKeyingM
 
     vchPlaintext = CKeyingMaterial(nPLen);
 
-    EVP_CIPHER_CTX ctx;
+    EVP_CIPHER_CTX *ctx = EVP_CIPHER_CTX_new();
+
+    if (!ctx) return false;
 
     bool fOk = true;
 
-    EVP_CIPHER_CTX_init(&ctx);
-    if (fOk) fOk = EVP_DecryptInit_ex(&ctx, EVP_aes_256_cbc(), NULL, chKey, chIV) != 0;
-    if (fOk) fOk = EVP_DecryptUpdate(&ctx, &vchPlaintext[0], &nPLen, &vchCiphertext[0], nLen) != 0;
-    if (fOk) fOk = EVP_DecryptFinal_ex(&ctx, (&vchPlaintext[0]) + nPLen, &nFLen) != 0;
-    EVP_CIPHER_CTX_cleanup(&ctx);
+    EVP_CIPHER_CTX_init(ctx);
+    if (fOk) fOk = EVP_DecryptInit_ex(ctx, EVP_aes_256_cbc(), NULL, chKey, chIV) != 0;
+    if (fOk) fOk = EVP_DecryptUpdate(ctx, &vchPlaintext[0], &nPLen, &vchCiphertext[0], nLen) != 0;
+    if (fOk) fOk = EVP_DecryptFinal_ex(ctx, (&vchPlaintext[0]) + nPLen, &nFLen) != 0;
+    EVP_CIPHER_CTX_cleanup(ctx);
+
+    EVP_CIPHER_CTX_free(ctx);
 
     if (!fOk) return false;
 
@@ -132,15 +140,19 @@ bool EncryptAES256(const SecureString& sKey, const SecureString& sPlaintext, con
     sCiphertext.resize(nCLen);
 
     // Perform the encryption
-    EVP_CIPHER_CTX ctx;
+    EVP_CIPHER_CTX *ctx = EVP_CIPHER_CTX_new();
+
+    if (!ctx) return false;
 
     bool fOk = true;
 
-    EVP_CIPHER_CTX_init(&ctx);
-    if (fOk) fOk = EVP_EncryptInit_ex(&ctx, EVP_aes_256_cbc(), NULL, (const unsigned char*) &sKey[0], (const unsigned char*) &sIV[0]);
-    if (fOk) fOk = EVP_EncryptUpdate(&ctx, (unsigned char*) &sCiphertext[0], &nCLen, (const unsigned char*) &sPlaintext[0], nLen);
-    if (fOk) fOk = EVP_EncryptFinal_ex(&ctx, (unsigned char*) (&sCiphertext[0])+nCLen, &nFLen);
-    EVP_CIPHER_CTX_cleanup(&ctx);
+    EVP_CIPHER_CTX_init(ctx);
+    if (fOk) fOk = EVP_EncryptInit_ex(ctx, EVP_aes_256_cbc(), NULL, (const unsigned char*) &sKey[0], (const unsigned char*) &sIV[0]);
+    if (fOk) fOk = EVP_EncryptUpdate(ctx, (unsigned char*) &sCiphertext[0], &nCLen, (const unsigned char*) &sPlaintext[0], nLen);
+    if (fOk) fOk = EVP_EncryptFinal_ex(ctx, (unsigned char*) (&sCiphertext[0])+nCLen, &nFLen);
+    EVP_CIPHER_CTX_cleanup(ctx);
+
+    EVP_CIPHER_CTX_free(ctx);
 
     if (!fOk) return false;
 
@@ -173,15 +185,19 @@ bool DecryptAES256(const SecureString& sKey, const std::string& sCiphertext, con
 
     sPlaintext.resize(nPLen);
 
-    EVP_CIPHER_CTX ctx;
+    EVP_CIPHER_CTX *ctx = EVP_CIPHER_CTX_new();
+
+    if (!ctx) return false;
 
     bool fOk = true;
 
-    EVP_CIPHER_CTX_init(&ctx);
-    if (fOk) fOk = EVP_DecryptInit_ex(&ctx, EVP_aes_256_cbc(), NULL, (const unsigned char*) &sKey[0], (const unsigned char*) &sIV[0]);
-    if (fOk) fOk = EVP_DecryptUpdate(&ctx, (unsigned char *) &sPlaintext[0], &nPLen, (const unsigned char *) &sCiphertext[0], nLen);
-    if (fOk) fOk = EVP_DecryptFinal_ex(&ctx, (unsigned char *) (&sPlaintext[0])+nPLen, &nFLen);
-    EVP_CIPHER_CTX_cleanup(&ctx);
+    EVP_CIPHER_CTX_init(ctx);
+    if (fOk) fOk = EVP_DecryptInit_ex(ctx, EVP_aes_256_cbc(), NULL, (const unsigned char*) &sKey[0], (const unsigned char*) &sIV[0]);
+    if (fOk) fOk = EVP_DecryptUpdate(ctx, (unsigned char *) &sPlaintext[0], &nPLen, (const unsigned char *) &sCiphertext[0], nLen);
+    if (fOk) fOk = EVP_DecryptFinal_ex(ctx, (unsigned char *) (&sPlaintext[0])+nPLen, &nFLen);
+    EVP_CIPHER_CTX_cleanup(ctx);
+
+    EVP_CIPHER_CTX_free(ctx);
 
     if (!fOk) return false;
 
@@ -214,21 +230,22 @@ bool CCryptoKeyStore::SetCrypted()
     return true;
 }
 
-bool CCryptoKeyStore::Lock()
+bool CCryptoKeyStore::Lock(bool fAllowMixing)
 {
     if (!SetCrypted())
         return false;
 
-    {
+    if(!fAllowMixing) {
         LOCK(cs_KeyStore);
         vMasterKey.clear();
     }
 
+    fOnlyMixingAllowed = fAllowMixing;
     NotifyStatusChanged(this);
     return true;
 }
 
-bool CCryptoKeyStore::Unlock(const CKeyingMaterial& vMasterKeyIn)
+bool CCryptoKeyStore::Unlock(const CKeyingMaterial& vMasterKeyIn, bool fForMixingOnly)
 {
     {
         LOCK(cs_KeyStore);
@@ -257,11 +274,27 @@ bool CCryptoKeyStore::Unlock(const CKeyingMaterial& vMasterKeyIn)
             LogPrintf("The wallet is probably corrupted: Some keys decrypt but not all.\n");
             assert(false);
         }
-        if (keyFail || !keyPass)
+        if (keyFail || (!keyPass && cryptedHDChain.IsNull()))
             return false;
+
         vMasterKey = vMasterKeyIn;
+
+        if(!cryptedHDChain.IsNull()) {
+            bool chainPass = false;
+            // try to decrypt seed and make sure it matches
+            CHDChain hdChainTmp;
+            if (DecryptHDChain(hdChainTmp)) {
+                // make sure seed matches this chain
+                chainPass = cryptedHDChain.GetID() == hdChainTmp.GetSeedHash();
+            }
+            if (!chainPass) {
+                vMasterKey.clear();
+                return false;
+            }
+        }
         fDecryptionThoroughlyChecked = true;
     }
+    fOnlyMixingAllowed = fForMixingOnly;
     NotifyStatusChanged(this);
     return true;
 }
@@ -273,7 +306,7 @@ bool CCryptoKeyStore::AddKeyPubKey(const CKey& key, const CPubKey &pubkey)
         if (!IsCrypted())
             return CBasicKeyStore::AddKeyPubKey(key, pubkey);
 
-        if (IsLocked())
+        if (IsLocked(true))
             return false;
 
         std::vector<unsigned char> vchCryptedSecret;
@@ -359,4 +392,143 @@ bool CCryptoKeyStore::EncryptKeys(CKeyingMaterial& vMasterKeyIn)
         mapKeys.clear();
     }
     return true;
+}
+
+bool CCryptoKeyStore::EncryptHDChain(const CKeyingMaterial& vMasterKeyIn)
+{
+    // should call EncryptKeys first
+    if (!IsCrypted())
+        return false;
+
+    if (!cryptedHDChain.IsNull())
+        return true;
+
+    if (cryptedHDChain.IsCrypted())
+        return true;
+
+    // make sure seed matches this chain
+    if (hdChain.GetID() != hdChain.GetSeedHash())
+        return false;
+
+    std::vector<unsigned char> vchCryptedSeed;
+    if (!EncryptSecret(vMasterKeyIn, hdChain.GetSeed(), hdChain.GetID(), vchCryptedSeed))
+        return false;
+
+    hdChain.Debug(__func__);
+    cryptedHDChain = hdChain;
+    cryptedHDChain.SetCrypted(true);
+
+    SecureVector vchSecureCryptedSeed(vchCryptedSeed.begin(), vchCryptedSeed.end());
+    if (!cryptedHDChain.SetSeed(vchSecureCryptedSeed, false))
+        return false;
+
+    SecureVector vchMnemonic;
+    SecureVector vchMnemonicPassphrase;
+
+    // it's ok to have no mnemonic if wallet was initialized via hdseed
+    if (hdChain.GetMnemonic(vchMnemonic, vchMnemonicPassphrase)) {
+        std::vector<unsigned char> vchCryptedMnemonic;
+        std::vector<unsigned char> vchCryptedMnemonicPassphrase;
+
+        if (!vchMnemonic.empty() && !EncryptSecret(vMasterKeyIn, vchMnemonic, hdChain.GetID(), vchCryptedMnemonic))
+            return false;
+        if (!vchMnemonicPassphrase.empty() && !EncryptSecret(vMasterKeyIn, vchMnemonicPassphrase, hdChain.GetID(), vchCryptedMnemonicPassphrase))
+            return false;
+
+        SecureVector vchSecureCryptedMnemonic(vchCryptedMnemonic.begin(), vchCryptedMnemonic.end());
+        SecureVector vchSecureCryptedMnemonicPassphrase(vchCryptedMnemonicPassphrase.begin(), vchCryptedMnemonicPassphrase.end());
+        if (!cryptedHDChain.SetMnemonic(vchSecureCryptedMnemonic, vchSecureCryptedMnemonicPassphrase, false))
+            return false;
+    }
+
+    if (!hdChain.SetNull())
+        return false;
+
+    return true;
+}
+
+bool CCryptoKeyStore::DecryptHDChain(CHDChain& hdChainRet) const
+{
+    if (!IsCrypted())
+        return true;
+
+    if (cryptedHDChain.IsNull())
+        return false;
+
+    if (!cryptedHDChain.IsCrypted())
+        return false;
+
+    SecureVector vchSecureSeed;
+    SecureVector vchSecureCryptedSeed = cryptedHDChain.GetSeed();
+    std::vector<unsigned char> vchCryptedSeed(vchSecureCryptedSeed.begin(), vchSecureCryptedSeed.end());
+    if (!DecryptSecret(vMasterKey, vchCryptedSeed, cryptedHDChain.GetID(), vchSecureSeed))
+        return false;
+
+    hdChainRet = cryptedHDChain;
+    if (!hdChainRet.SetSeed(vchSecureSeed, false))
+        return false;
+
+    // hash of decrypted seed must match chain id
+    if (hdChainRet.GetSeedHash() != cryptedHDChain.GetID())
+        return false;
+
+    SecureVector vchSecureCryptedMnemonic;
+    SecureVector vchSecureCryptedMnemonicPassphrase;
+
+    // it's ok to have no mnemonic if wallet was initialized via hdseed
+    if (cryptedHDChain.GetMnemonic(vchSecureCryptedMnemonic, vchSecureCryptedMnemonicPassphrase)) {
+        SecureVector vchSecureMnemonic;
+        SecureVector vchSecureMnemonicPassphrase;
+
+        std::vector<unsigned char> vchCryptedMnemonic(vchSecureCryptedMnemonic.begin(), vchSecureCryptedMnemonic.end());
+        std::vector<unsigned char> vchCryptedMnemonicPassphrase(vchSecureCryptedMnemonicPassphrase.begin(), vchSecureCryptedMnemonicPassphrase.end());
+
+        if (!vchCryptedMnemonic.empty() && !DecryptSecret(vMasterKey, vchCryptedMnemonic, cryptedHDChain.GetID(), vchSecureMnemonic))
+            return false;
+        if (!vchCryptedMnemonicPassphrase.empty() && !DecryptSecret(vMasterKey, vchCryptedMnemonicPassphrase, cryptedHDChain.GetID(), vchSecureMnemonicPassphrase))
+            return false;
+
+        if (!hdChainRet.SetMnemonic(vchSecureMnemonic, vchSecureMnemonicPassphrase, false))
+            return false;
+    }
+
+    hdChainRet.SetCrypted(false);
+    hdChainRet.Debug(__func__);
+
+    return true;
+}
+
+bool CCryptoKeyStore::SetHDChain(const CHDChain& chain)
+{
+    if (IsCrypted())
+        return false;
+
+    if (chain.IsCrypted())
+        return false;
+
+    hdChain = chain;
+    return true;
+}
+
+bool CCryptoKeyStore::SetCryptedHDChain(const CHDChain& chain)
+{
+    if (!SetCrypted())
+        return false;
+
+    if (!chain.IsCrypted())
+        return false;
+
+    cryptedHDChain = chain;
+    return true;
+}
+
+bool CCryptoKeyStore::GetHDChain(CHDChain& hdChainRet) const
+{
+    if(IsCrypted()) {
+        hdChainRet = cryptedHDChain;
+        return !cryptedHDChain.IsNull();
+    }
+
+    hdChainRet = hdChain;
+    return !hdChain.IsNull();
 }

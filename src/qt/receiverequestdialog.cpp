@@ -32,7 +32,7 @@
 QRImageWidget::QRImageWidget(QWidget *parent):
     QLabel(parent), contextMenu(0)
 {
-    contextMenu = new QMenu();
+    contextMenu = new QMenu(this);
     QAction *saveImageAction = new QAction(tr("&Save Image..."), this);
     connect(saveImageAction, SIGNAL(triggered()), this, SLOT(saveImage()));
     contextMenu->addAction(saveImageAction);
@@ -149,6 +149,7 @@ void ReceiveRequestDialog::update()
         html += "<b>"+tr("Label")+"</b>: " + GUIUtil::HtmlEscape(info.label) + "<br>";
     if(!info.message.isEmpty())
         html += "<b>"+tr("Message")+"</b>: " + GUIUtil::HtmlEscape(info.message) + "<br>";
+    html += "<b>"+tr("InstantSend")+"</b>: " + (info.fUseInstantSend ? tr("Yes") : tr("No")) + "<br>";
     ui->outUri->setText(html);
 
 #ifdef USE_QRCODE

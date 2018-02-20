@@ -48,11 +48,11 @@ Var StartMenuGroup
 !insertmacro MUI_LANGUAGE English
 
 # Installer attributes
-OutFile @abs_top_srcdir@/neodash-${VERSION}-win@WINDOWS_BITS@-setup.exe
+OutFile @abs_top_srcdir@/neodashcore-${VERSION}-win@WINDOWS_BITS@-setup.exe
 !if "@WINDOWS_BITS@" == "64"
-InstallDir $PROGRAMFILES64\Neodash
+InstallDir $PROGRAMFILES64\NeodashCore
 !else
-InstallDir $PROGRAMFILES\Neodash
+InstallDir $PROGRAMFILES\NeodashCore
 !endif
 CRCCheck on
 XPStyle on

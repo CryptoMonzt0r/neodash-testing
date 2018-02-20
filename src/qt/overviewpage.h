@@ -8,6 +8,7 @@
 #include "amount.h"
 
 #include <QWidget>
+#include <memory>
 
 class ClientModel;
 class TransactionFilterProxy;
@@ -43,6 +44,7 @@ public Q_SLOTS:
 
 Q_SIGNALS:
     void transactionClicked(const QModelIndex &index);
+    void outOfSyncWarningClicked();
 
 private:
     QTimer *timer;
@@ -60,7 +62,7 @@ private:
     bool fShowAdvancedPSUI;
 
     TxViewDelegate *txdelegate;
-    TransactionFilterProxy *filter;
+    std::unique_ptr<TransactionFilterProxy> filter;
 
     void SetupTransactionList(int nNumItems);
     void DisablePrivateSendCompletely();
@@ -69,12 +71,14 @@ private Q_SLOTS:
     void togglePrivateSend();
     void privateSendAuto();
     void privateSendReset();
+    void privateSendInfo();
     void updateDisplayUnit();
     void updatePrivateSendProgress();
     void updateAdvancedPSUI(bool fShowAdvancedPSUI);
     void handleTransactionClicked(const QModelIndex &index);
     void updateAlerts(const QString &warnings);
     void updateWatchOnlyLabels(bool showWatchOnly);
+    void handleOutOfSyncWarningClicks();
 };
 
 #endif // BITCOIN_QT_OVERVIEWPAGE_H

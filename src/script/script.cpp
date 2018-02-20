@@ -131,7 +131,7 @@ const char* GetOpName(opcodetype opcode)
     // expanson
     case OP_NOP1                   : return "OP_NOP1";
     case OP_CHECKLOCKTIMEVERIFY    : return "OP_CHECKLOCKTIMEVERIFY";
-    case OP_NOP3                   : return "OP_NOP3";
+    case OP_CHECKSEQUENCEVERIFY    : return "OP_CHECKSEQUENCEVERIFY";
     case OP_NOP4                   : return "OP_NOP4";
     case OP_NOP5                   : return "OP_NOP5";
     case OP_NOP6                   : return "OP_NOP6";
@@ -200,28 +200,15 @@ unsigned int CScript::GetSigOpCount(const CScript& scriptSig) const
     return subscript.GetSigOpCount(true);
 }
 
-bool CScript::IsNormalPaymentScript() const
+bool CScript::IsPayToPublicKeyHash() const
 {
-    if(this->size() != 25) return false;
-
-    std::string str;
-    opcodetype opcode;
-    const_iterator pc = begin();
-    int i = 0;
-    while (pc < end())
-    {
-        GetOp(pc, opcode);
-
-        if(     i == 0 && opcode != OP_DUP) return false;
-        else if(i == 1 && opcode != OP_HASH160) return false;
-        else if(i == 3 && opcode != OP_EQUALVERIFY) return false;
-        else if(i == 4 && opcode != OP_CHECKSIG) return false;
-        else if(i == 5) return false;
-
-        i++;
-    }
-
-    return true;
+    // Extra-fast test for pay-to-pubkey-hash CScripts:
+    return (this->size() == 25 &&
+            (*this)[0] == OP_DUP &&
+            (*this)[1] == OP_HASH160 &&
+            (*this)[2] == 0x14 &&
+            (*this)[23] == OP_EQUALVERIFY &&
+            (*this)[24] == OP_CHECKSIG);
 }
 
 bool CScript::IsPayToScriptHash() const

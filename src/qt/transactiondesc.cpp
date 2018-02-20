@@ -1,5 +1,5 @@
 // Copyright (c) 2011-2015 The Bitcoin Core developers
-// Copyright (c) 2014-2016 The Neodash Core developers
+// Copyright (c) 2017 The Neodash Core developers
 // Distributed under the MIT software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
@@ -12,12 +12,14 @@
 
 #include "base58.h"
 #include "consensus/consensus.h"
-#include "main.h"
+#include "validation.h"
 #include "script/script.h"
 #include "timedata.h"
 #include "util.h"
 #include "wallet/db.h"
 #include "wallet/wallet.h"
+
+#include "instantx.h"
 
 #include <stdint.h>
 #include <string>
@@ -34,54 +36,38 @@ QString TransactionDesc::FormatTxStatus(const CWalletTx& wtx)
     }
     else
     {
-        int signatures = GetTransactionLockSignatures(wtx.GetHash());
-        QString strUsingIX = "";
-        if(signatures >= 0){
+        int nDepth = wtx.GetDepthInMainChain();
+        if (nDepth < 0) return tr("conflicted");
 
-            if(signatures >= INSTANTX_SIGNATURES_REQUIRED){
-                int nDepth = wtx.GetDepthInMainChain();
-                if (nDepth < 0)
-                    return tr("conflicted");
-                else if (GetAdjustedTime() - wtx.nTimeReceived > 2 * 60 && wtx.GetRequestCount() == 0)
-                    return tr("%1/offline (verified via InstantSend)").arg(nDepth);
-                else if (nDepth < 6)
-                    return tr("%1/confirmed (verified via InstantSend)").arg(nDepth);
-                else
-                    return tr("%1 confirmations (verified via InstantSend)").arg(nDepth);
-            } else {
-                if(!IsTransactionLockTimedOut(wtx.GetHash())){
-                    int nDepth = wtx.GetDepthInMainChain();
-                    if (nDepth < 0)
-                        return tr("conflicted");
-                    else if (GetAdjustedTime() - wtx.nTimeReceived > 2 * 60 && wtx.GetRequestCount() == 0)
-                        return tr("%1/offline (InstantSend verification in progress - %2 of %3 signatures)").arg(nDepth).arg(signatures).arg(INSTANTX_SIGNATURES_TOTAL);
-                    else if (nDepth < 6)
-                        return tr("%1/confirmed (InstantSend verification in progress - %2 of %3 signatures )").arg(nDepth).arg(signatures).arg(INSTANTX_SIGNATURES_TOTAL);
-                    else
-                        return tr("%1 confirmations (InstantSend verification in progress - %2 of %3 signatures)").arg(nDepth).arg(signatures).arg(INSTANTX_SIGNATURES_TOTAL);
-                } else {
-                    int nDepth = wtx.GetDepthInMainChain();
-                    if (nDepth < 0)
-                        return tr("conflicted");
-                    else if (GetAdjustedTime() - wtx.nTimeReceived > 2 * 60 && wtx.GetRequestCount() == 0)
-                        return tr("%1/offline (InstantSend verification failed)").arg(nDepth);
-                    else if (nDepth < 6)
-                        return tr("%1/confirmed (InstantSend verification failed)").arg(nDepth);
-                    else
-                        return tr("%1 confirmations").arg(nDepth);
-                }
-            }
+        QString strTxStatus;
+        bool fOffline = (GetAdjustedTime() - wtx.nTimeReceived > 2 * 60) && (wtx.GetRequestCount() == 0);
+
+        if (fOffline) {
+            strTxStatus = tr("%1/offline").arg(nDepth);
+        } else if (nDepth == 0) {
+            strTxStatus = tr("0/unconfirmed, %1").arg((wtx.InMempool() ? tr("in memory pool") : tr("not in memory pool"))) + (wtx.isAbandoned() ? ", "+tr("abandoned") : "");
+        } else if (nDepth < 6) {
+            strTxStatus = tr("%1/unconfirmed").arg(nDepth);
         } else {
-            int nDepth = wtx.GetDepthInMainChain();
-            if (nDepth < 0)
-                return tr("conflicted");
-            else if (GetAdjustedTime() - wtx.nTimeReceived > 2 * 60 && wtx.GetRequestCount() == 0)
-                return tr("%1/offline").arg(nDepth);
-            else if (nDepth < 6)
-                return tr("%1/unconfirmed").arg(nDepth);
-            else
-                return tr("%1 confirmations").arg(nDepth);
+            strTxStatus = tr("%1 confirmations").arg(nDepth);
         }
+
+        if(!instantsend.HasTxLockRequest(wtx.GetHash())) return strTxStatus; // regular tx
+
+        int nSignatures = instantsend.GetTransactionLockSignatures(wtx.GetHash());
+        int nSignaturesMax = CTxLockRequest(wtx).GetMaxSignatures();
+        // InstantSend
+        strTxStatus += " (";
+        if(instantsend.IsLockedInstantSendTransaction(wtx.GetHash())) {
+            strTxStatus += tr("verified via InstantSend");
+        } else if(!instantsend.IsTxLockCandidateTimedOut(wtx.GetHash())) {
+            strTxStatus += tr("InstantSend verification in progress - %1 of %2 signatures").arg(nSignatures).arg(nSignaturesMax);
+        } else {
+            strTxStatus += tr("InstantSend verification failed");
+        }
+        strTxStatus += ")";
+
+        return strTxStatus;
     }
 }
 
@@ -279,6 +265,7 @@ QString TransactionDesc::toHTML(CWallet *wallet, CWalletTx &wtx, TransactionReco
         strHTML += "<br><b>" + tr("Comment") + ":</b><br>" + GUIUtil::HtmlEscape(wtx.mapValue["comment"], true) + "<br>";
 
     strHTML += "<b>" + tr("Transaction ID") + ":</b> " + TransactionRecord::formatSubTxId(wtx.GetHash(), rec->idx) + "<br>";
+    strHTML += "<b>" + tr("Transaction total size") + ":</b> " + QString::number(wtx.GetTotalSize()) + " bytes<br>";
 
     // Message from normal neodash:URI (neodash:XyZ...?message=example)
     Q_FOREACH (const PAIRTYPE(std::string, std::string)& r, wtx.vOrderForm)
@@ -329,13 +316,12 @@ QString TransactionDesc::toHTML(CWallet *wallet, CWalletTx &wtx, TransactionReco
         {
             COutPoint prevout = txin.prevout;
 
-            CCoins prev;
-            if(pcoinsTip->GetCoins(prevout.hash, prev))
+            Coin prev;
+            if(pcoinsTip->GetCoin(prevout, prev))
             {
-                if (prevout.n < prev.vout.size())
                 {
                     strHTML += "<li>";
-                    const CTxOut &vout = prev.vout[prevout.n];
+                    const CTxOut &vout = prev.out;
                     CTxDestination address;
                     if (ExtractDestination(vout.scriptPubKey, address))
                     {

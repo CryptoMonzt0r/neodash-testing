@@ -33,12 +33,12 @@ def check_json_precision():
         raise RuntimeError("JSON encode/decode loses precision")
 
 def determine_db_dir():
-    """Return the default location of the neodash data directory"""
+    """Return the default location of the Neodash Core data directory"""
     if platform.system() == "Darwin":
-        return os.path.expanduser("~/Library/Application Support/Neodash/")
+        return os.path.expanduser("~/Library/Application Support/NeodashCore/")
     elif platform.system() == "Windows":
-        return os.path.join(os.environ['APPDATA'], "Neodash")
-    return os.path.expanduser("~/.neodash")
+        return os.path.join(os.environ['APPDATA'], "NeodashCore")
+    return os.path.expanduser("~/.neodashcore")
 
 def read_bitcoin_config(dbdir):
     """Read the neodash.conf file from dbdir, returns dictionary of settings"""
@@ -63,11 +63,11 @@ def read_bitcoin_config(dbdir):
     return dict(config_parser.items("all"))
 
 def connect_JSON(config):
-    """Connect to a neodash JSON-RPC server"""
+    """Connect to a Neodash Core JSON-RPC server"""
     testnet = config.get('testnet', '0')
     testnet = (int(testnet) > 0)  # 0/1 in config file, convert to True/False
     if not 'rpcport' in config:
-        config['rpcport'] = 19998 if testnet else 9998
+        config['rpcport'] = 19500 if testnet else 9500
     connect = "http://%s:%s@127.0.0.1:%s"%(config['rpcuser'], config['rpcpassword'], config['rpcport'])
     try:
         result = ServiceProxy(connect)

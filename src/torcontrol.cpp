@@ -1,5 +1,6 @@
 #include "torcontrol.h"
 #include "utilstrencodings.h"
+#include "netbase.h"
 #include "net.h"
 #include "util.h"
 #include "crypto/hmac_sha256.h"
@@ -303,7 +304,7 @@ static std::map<std::string,std::string> ParseTorReplyMapping(const std::string 
 
 /** Read full contents of a file and return them in a std::string.
  * Returns a pair <status, string>.
- * If an error occured, status will be false, otherwise status will be true and the data will be returned in string.
+ * If an error occurred, status will be false, otherwise status will be true and the data will be returned in string.
  *
  * @param maxsize Puts a maximum size limit on the file that is read. If the file is larger than this, truncated data
  *         (with len > maxsize) will be returned.
@@ -394,6 +395,9 @@ TorController::TorController(struct event_base* base, const std::string& target)
     target(target), conn(base), reconnect(true), reconnect_ev(0),
     reconnect_timeout(RECONNECT_TIMEOUT_START)
 {
+    reconnect_ev = event_new(base, -1, 0, reconnect_cb, this);
+    if (!reconnect_ev)
+        LogPrintf("tor: Failed to create event for reconnection: out of memory?\n");
     // Start connection attempts immediately
     if (!conn.Connect(target, boost::bind(&TorController::connected_cb, this, _1),
          boost::bind(&TorController::disconnected_cb, this, _1) )) {
@@ -409,8 +413,10 @@ TorController::TorController(struct event_base* base, const std::string& target)
 
 TorController::~TorController()
 {
-    if (reconnect_ev)
-        event_del(reconnect_ev);
+    if (reconnect_ev) {
+        event_free(reconnect_ev);
+        reconnect_ev = 0;
+    }
     if (service.IsValid()) {
         RemoveLocal(service);
     }
@@ -428,9 +434,8 @@ void TorController::add_onion_cb(TorControlConnection& conn, const TorControlRep
             if ((i = m.find("PrivateKey")) != m.end())
                 private_key = i->second;
         }
-
-        service = CService(service_id+".onion", GetListenPort(), false);
-        LogPrintf("tor: Got service ID %s, advertizing service %s\n", service_id, service.ToString());
+        service = LookupNumeric(std::string(service_id+".onion").c_str(), GetListenPort());
+        LogPrintf("tor: Got service ID %s, advertising service %s\n", service_id, service.ToString());
         if (WriteBinaryFile(GetPrivateKeyFile(), private_key)) {
             LogPrint("tor", "tor: Cached service private key to %s\n", GetPrivateKeyFile());
         } else {
@@ -453,14 +458,15 @@ void TorController::auth_cb(TorControlConnection& conn, const TorControlReply& r
         // Now that we know Tor is running setup the proxy for onion addresses
         // if -onion isn't set to something else.
         if (GetArg("-onion", "") == "") {
-            proxyType addrOnion = proxyType(CService("127.0.0.1", 9050), true);
+            CService resolved(LookupNumeric("127.0.0.1", 9050));
+            proxyType addrOnion = proxyType(resolved, true);
             SetProxy(NET_TOR, addrOnion);
-            SetReachable(NET_TOR);
+            SetLimited(NET_TOR, false);
         }
 
         // Finally - now create the service
         if (private_key.empty()) // No private key, generate one
-            private_key = "NEW:BEST";
+            private_key = "NEW:RSA1024"; // Explicitly request RSA1024 - see issue #9214
         // Request hidden service, redirect port.
         // Note that the 'virtual' port doesn't have to be the same as our internal port, but this is just a convenient
         // choice.  TODO; refactor the shutdown sequence some day.
@@ -611,7 +617,7 @@ void TorController::connected_cb(TorControlConnection& conn)
 
 void TorController::disconnected_cb(TorControlConnection& conn)
 {
-    // Stop advertizing service when disconnected
+    // Stop advertising service when disconnected
     if (service.IsValid())
         RemoveLocal(service);
     service = CService();
@@ -622,8 +628,8 @@ void TorController::disconnected_cb(TorControlConnection& conn)
 
     // Single-shot timer for reconnect. Use exponential backoff.
     struct timeval time = MillisToTimeval(int64_t(reconnect_timeout * 1000.0));
-    reconnect_ev = event_new(base, -1, 0, reconnect_cb, this);
-    event_add(reconnect_ev, &time);
+    if (reconnect_ev)
+        event_add(reconnect_ev, &time);
     reconnect_timeout *= RECONNECT_TIMEOUT_EXP;
 }
 

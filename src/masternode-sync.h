@@ -1,23 +1,31 @@
-// Copyright (c) 2014-2016 The Neodash Core developers
-
+// Copyright (c) 2017 The Neodash Core developers
 // Distributed under the MIT/X11 software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 #ifndef MASTERNODE_SYNC_H
 #define MASTERNODE_SYNC_H
 
-#define MASTERNODE_SYNC_INITIAL           0
-#define MASTERNODE_SYNC_SPORKS            1
-#define MASTERNODE_SYNC_LIST              2
-#define MASTERNODE_SYNC_MNW               3
-#define MASTERNODE_SYNC_GOVERNANCE        4
-#define MASTERNODE_SYNC_GOVOBJ            10
-#define MASTERNODE_SYNC_GOVERNANCE_FIN    11
-#define MASTERNODE_SYNC_FAILED            998
-#define MASTERNODE_SYNC_FINISHED          999
+#include "chain.h"
+#include "net.h"
 
-#define MASTERNODE_SYNC_TIMEOUT           30 // our blocks are 2.5 minutes so 30 seconds should be fine
+#include <univalue.h>
 
 class CMasternodeSync;
+
+static const int MASTERNODE_SYNC_FAILED          = -1;
+static const int MASTERNODE_SYNC_INITIAL         = 0; // sync just started, was reset recently or still in IDB
+static const int MASTERNODE_SYNC_WAITING         = 1; // waiting after initial to see if we can get more headers/blocks
+static const int MASTERNODE_SYNC_LIST            = 2;
+static const int MASTERNODE_SYNC_MNW             = 3;
+static const int MASTERNODE_SYNC_GOVERNANCE      = 4;
+static const int MASTERNODE_SYNC_GOVOBJ          = 10;
+static const int MASTERNODE_SYNC_GOVOBJ_VOTE     = 11;
+static const int MASTERNODE_SYNC_FINISHED        = 999;
+
+static const int MASTERNODE_SYNC_TICK_SECONDS    = 6;
+static const int MASTERNODE_SYNC_TIMEOUT_SECONDS = 30; // our blocks are 2.5 minutes so 30 seconds should be fine
+
+static const int MASTERNODE_SYNC_ENOUGH_PEERS    = 6;
+
 extern CMasternodeSync masternodeSync;
 
 //
@@ -26,57 +34,50 @@ extern CMasternodeSync masternodeSync;
 
 class CMasternodeSync
 {
-public:
-    std::map<uint256, int> mapSeenSyncMNB;
-    std::map<uint256, int> mapSeenSyncMNW;
-    std::map<uint256, int> mapSeenSyncBudget;
-
-    int64_t lastMasternodeList;
-    int64_t lastMasternodeWinner;
-    int64_t lastBudgetItem;
-    int64_t lastFailure;
-    int nCountFailures;
-
-    // sum of all counts
-    int sumMasternodeList;
-    int sumMasternodeWinner;
-    int sumBudgetItemProp;
-    int sumBudgetItemFin;
-    // peers that reported counts
-    int countMasternodeList;
-    int countMasternodeWinner;
-    int countBudgetItemProp;
-    int countBudgetItemFin;
-
-    // Count peers we've requested the list from
-    int RequestedMasternodeAssets;
-    int RequestedMasternodeAttempt;
+private:
+    // Keep track of current asset
+    int nRequestedMasternodeAssets;
+    // Count peers we've requested the asset from
+    int nRequestedMasternodeAttempt;
 
     // Time when current masternode asset sync started
-    int64_t nAssetSyncStarted;
+    int64_t nTimeAssetSyncStarted;
+    // ... last bumped
+    int64_t nTimeLastBumped;
+    // ... or failed
+    int64_t nTimeLastFailure;
 
-    // Keep track of current block index
-    const CBlockIndex *pCurrentBlockIndex;
+    void Fail();
+    void ClearFulfilledRequests(CConnman& connman);
 
-    CMasternodeSync();
+public:
+    CMasternodeSync() { Reset(); }
 
-    void AddedMasternodeList(uint256 hash);
-    void AddedMasternodeWinner(uint256 hash);
-    void AddedBudgetItem(uint256 hash);
-    void GetNextAsset();
+
+    void SendGovernanceSyncRequest(CNode* pnode, CConnman& connman);
+
+    bool IsFailed() { return nRequestedMasternodeAssets == MASTERNODE_SYNC_FAILED; }
+    bool IsBlockchainSynced() { return nRequestedMasternodeAssets > MASTERNODE_SYNC_WAITING; }
+    bool IsMasternodeListSynced() { return nRequestedMasternodeAssets > MASTERNODE_SYNC_LIST; }
+    bool IsWinnersListSynced() { return nRequestedMasternodeAssets > MASTERNODE_SYNC_MNW; }
+    bool IsSynced() { return nRequestedMasternodeAssets == MASTERNODE_SYNC_FINISHED; }
+
+    int GetAssetID() { return nRequestedMasternodeAssets; }
+    int GetAttempt() { return nRequestedMasternodeAttempt; }
+    void BumpAssetLastTime(std::string strFuncName);
+    int64_t GetAssetStartTime() { return nTimeAssetSyncStarted; }
     std::string GetAssetName();
     std::string GetSyncStatus();
-    void ProcessMessage(CNode* pfrom, std::string& strCommand, CDataStream& vRecv);
-    bool IsBudgetFinEmpty();
-    bool IsBudgetPropEmpty();
 
     void Reset();
-    void Process();
-    bool IsSynced();
-    bool IsBlockchainSynced();
-    void ClearFulfilledRequest();
+    void SwitchToNextAsset(CConnman& connman);
 
-    void UpdatedBlockTip(const CBlockIndex *pindex);
+    void ProcessMessage(CNode* pfrom, std::string& strCommand, CDataStream& vRecv);
+    void ProcessTick(CConnman& connman);
+
+    void AcceptedBlockHeader(const CBlockIndex *pindexNew);
+    void NotifyHeaderTip(const CBlockIndex *pindexNew, bool fInitialDownload, CConnman& connman);
+    void UpdatedBlockTip(const CBlockIndex *pindexNew, bool fInitialDownload, CConnman& connman);
 };
 
 #endif

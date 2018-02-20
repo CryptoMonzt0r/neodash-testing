@@ -12,6 +12,7 @@ gradually.
   - No indentation for public/protected/private or for namespaces.
   - No extra spaces inside parenthesis; don't do ( this )
   - No space after function names; one space after if, for and while.
+  - Align pointers and references to the left i.e. use `type& var` and not `type &var`.
 
 Block style example:
 ```c++
@@ -19,7 +20,7 @@ namespace foo
 {
 class Class
 {
-    bool Function(char* psz, int n)
+    bool Function(char* psz, int n, const string& s)
     {
         // Comment summarising what this section of code does
         for (int i = 0; i < n; i++) {
@@ -110,7 +111,7 @@ to see it.
 
 **testnet and regtest modes**
 
-Run with the -testnet option to run with "play bitcoins" on the test network, if you
+Run with the -testnet option to run with "play coins" on the test network, if you
 are testing multi-machine code that needs to operate across the internet.
 
 If you are testing something that can run on one machine, run with the -regtest option.
@@ -154,7 +155,7 @@ Threads
 
 - ThreadMapPort : Universal plug-and-play startup/shutdown
 
-- ThreadSocketHandler : Sends/Receives data from peers on port 8333.
+- ThreadSocketHandler : Sends/Receives data from peers on port 9915.
 
 - ThreadOpenAddedConnections : Opens network connections to added nodes.
 
@@ -166,9 +167,9 @@ Threads
 
 - ThreadFlushWalletDB : Close the wallet.dat file if it hasn't been used in 500ms.
 
-- ThreadRPCServer : Remote procedure call handler, listens on port 9998 for connections and services them.
+- ThreadRPCServer : Remote procedure call handler, listens on port 9500 for connections and services them.
 
-- BitcoinMiner : Generates bitcoins (if wallet is enabled).
+- BitcoinMiner : Generates coins (if wallet is enabled).
 
 - ThreadCheckDarkSendPool : Runs masternode list and sync data update loops
 
@@ -329,8 +330,7 @@ Threads and synchronization
 ----------------------------
 
 - Build and run tests with `-DDEBUG_LOCKORDER` to verify that no potential
-  deadlocks are introduced. As of 0.12, this is defined by default when
-  configuring with `--enable-debug`
+  deadlocks are introduced.
 
 - When using `LOCK`/`TRY_LOCK` be aware that the lock exists in the context of
   the current scope, so surround the statement and the code that needs the lock

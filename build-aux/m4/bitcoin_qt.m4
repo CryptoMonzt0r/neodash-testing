@@ -203,6 +203,21 @@ AC_DEFUN([BITCOIN_QT_CONFIGURE],[
   BITCOIN_QT_PATH_PROGS([LRELEASE], [lrelease-qt${bitcoin_qt_got_major_vers} lrelease${bitcoin_qt_got_major_vers} lrelease], $qt_bin_path)
   BITCOIN_QT_PATH_PROGS([LUPDATE], [lupdate-qt${bitcoin_qt_got_major_vers} lupdate${bitcoin_qt_got_major_vers} lupdate],$qt_bin_path, yes)
 
+  BITCOIN_QT_CHECK([
+    AC_CACHE_CHECK([whether $RCC accepts --format-version option],
+                   [ac_cv_prog_rcc_accepts_format_version],
+                   [ac_cv_prog_rcc_accepts_format_version=no
+                    echo '<!DOCTYPE RCC><RCC version="1.0"/>' > conftest.qrc
+                    $RCC --format-version 1 conftest.qrc >/dev/null 2>&1 && ac_cv_prog_rcc_accepts_format_version=yes
+                    rm -f conftest.qrc])
+    if test "$ac_cv_prog_rcc_accepts_format_version" = yes; then
+      RCCFLAGS="--format-version 1"
+    else
+      RCCFLAGS=
+    fi
+    AC_SUBST(RCCFLAGS)
+  ])
+
   MOC_DEFS='-DHAVE_CONFIG_H -I$(srcdir)'
   case $host in
     *darwin*)
@@ -384,7 +399,7 @@ AC_DEFUN([_BITCOIN_QT_FIND_LIBS_WITH_PKGCONFIG],[
 
       dnl qt version is set to 'auto' and the preferred version wasn't found. Now try the other.
       if test x$have_qt = xno && test x$bitcoin_qt_want_version = xauto; then
-        if test x$auto_priority_version = x$qt5; then
+        if test x$auto_priority_version = xqt5; then
           PKG_CHECK_MODULES([QT], [$qt4_modules], [QT_INCLUDES="$QT_CFLAGS"; have_qt=yes; QT_LIB_PREFIX=Qt; bitcoin_qt_got_major_vers=4], [have_qt=no])
         else
           PKG_CHECK_MODULES([QT], [$qt5_modules], [QT_INCLUDES="$QT_CFLAGS"; have_qt=yes; QT_LIB_PREFIX=Qt5; bitcoin_qt_got_major_vers=5], [have_qt=no])

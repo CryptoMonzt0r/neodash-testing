@@ -1,5 +1,5 @@
 // Copyright (c) 2014 The Bitcoin Core developers
-// Copyright (c) 2014-2016 The Neodash Core developers
+// Copyright (c) 2017 The Neodash Core developers
 // Distributed under the MIT software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
@@ -64,6 +64,8 @@ NetworkStyle::NetworkStyle(const QString &appName, const int iconColorHueShift, 
 {
     // Allow for separate UI settings for testnets
     QApplication::setApplicationName(appName);
+    // Make sure settings migrated properly
+    GUIUtil::migrateQtSettings();
     // Grab theme from settings
     QString theme = GUIUtil::getThemeName();
     // load pixmap

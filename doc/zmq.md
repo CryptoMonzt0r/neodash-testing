@@ -57,9 +57,11 @@ the commandline or in the configuration file.
 Currently, the following notifications are supported:
 
     -zmqpubhashtx=address
+    -zmqpubhashtxlock=address
     -zmqpubhashblock=address
     -zmqpubrawblock=address
     -zmqpubrawtx=address
+    -zmqpubrawtxlock=address
 
 The socket type is PUB and the address must be a valid ZeroMQ socket
 address. The same address can be used in more than one notification.
@@ -99,3 +101,8 @@ using other means such as firewalling.
 Note that when the block chain tip changes, a reorganisation may occur
 and just the tip will be notified. It is up to the subscriber to
 retrieve the chain from the last known block to the new tip.
+
+There are several possibilities that ZMQ notification can get lost
+during transmission depending on the communication type your are
+using. Neodashd appends an up-counting sequence number to each
+notification which allows listeners to detect lost notifications.

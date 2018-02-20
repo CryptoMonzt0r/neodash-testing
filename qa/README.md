@@ -1,9 +1,20 @@
 The [pull-tester](/qa/pull-tester/) folder contains a script to call
 multiple tests from the [rpc-tests](/qa/rpc-tests/) folder.
 
-Every pull request to the neodash repository is built and run through
+Every pull request to the Neodash Core repository is built and run through
 the regression test suite. You can also run all or only individual
 tests locally.
+
+Test dependencies
+=================
+Before running the tests, the following must be installed.
+
+Unix
+----
+The python-zmq library is required. On Ubuntu or Debian it can be installed via: 
+```
+sudo apt-get install python-zmq
+```
 
 Running tests
 =============

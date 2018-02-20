@@ -196,6 +196,8 @@ BOOST_AUTO_TEST_CASE(util_ParseMoney)
     BOOST_CHECK_EQUAL(ret, COIN*10);
     BOOST_CHECK(ParseMoney("1.00", ret));
     BOOST_CHECK_EQUAL(ret, COIN);
+    BOOST_CHECK(ParseMoney("1", ret));
+    BOOST_CHECK_EQUAL(ret, COIN);
     BOOST_CHECK(ParseMoney("0.1", ret));
     BOOST_CHECK_EQUAL(ret, COIN/10);
     BOOST_CHECK(ParseMoney("0.01", ret));
@@ -215,6 +217,9 @@ BOOST_AUTO_TEST_CASE(util_ParseMoney)
 
     // Attempted 63 bit overflow should fail
     BOOST_CHECK(!ParseMoney("92233720368.54775808", ret));
+
+    // Parsing negative amounts must fail
+    BOOST_CHECK(!ParseMoney("-1", ret));
 }
 
 BOOST_AUTO_TEST_CASE(util_IsHex)
@@ -482,6 +487,21 @@ BOOST_AUTO_TEST_CASE(test_ParseFixedPoint)
     BOOST_CHECK(!ParseFixedPoint("1.1e", 8, &amount));
     BOOST_CHECK(!ParseFixedPoint("1.1e-", 8, &amount));
     BOOST_CHECK(!ParseFixedPoint("1.", 8, &amount));
+}
+
+BOOST_AUTO_TEST_CASE(version_info_helper)
+{
+    BOOST_CHECK(StringVersionToInt("1.1.1") == 0x010101);
+    BOOST_CHECK(IntVersionToString(0x010101) == "1.1.1");
+
+    BOOST_CHECK_THROW(StringVersionToInt("1.1.hgdghfgf"), bad_cast);
+    BOOST_CHECK_THROW(StringVersionToInt("1.1"), bad_cast);
+    BOOST_CHECK_THROW(StringVersionToInt("1.1.1f"), bad_cast);
+    BOOST_CHECK_THROW(StringVersionToInt("1.1.1000"), bad_cast);
+    BOOST_CHECK_THROW(StringVersionToInt("10"), bad_cast);
+    BOOST_CHECK_THROW(StringVersionToInt("1.1.1.1"), bad_cast);
+    BOOST_CHECK_THROW(IntVersionToString(0x01010101), bad_cast);
+    BOOST_CHECK_THROW(IntVersionToString(0), bad_cast);
 }
 
 BOOST_AUTO_TEST_SUITE_END()

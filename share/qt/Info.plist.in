@@ -38,7 +38,7 @@
   <true/>
 
   <key>CFBundleIdentifier</key>
-  <string>io.neodashpay.Neodash-Qt</string>
+  <string>org.neodash.Neodash-Qt</string>
 
   <key>CFBundleURLTypes</key>
   <array>

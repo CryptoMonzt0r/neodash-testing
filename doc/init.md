@@ -13,7 +13,7 @@ can be found in the contrib/init folder.
 1. Service User
 ---------------------------------
 
-All three Linux startup configurations assume the existence of a "neodash" user
+All three Linux startup configurations assume the existence of a "neodashcore" user
 and group.  They must be created before attempting to use these scripts.
 The OS X configuration assumes neodashd will be set up for the current user.
 
@@ -54,23 +54,23 @@ see `contrib/debian/examples/neodash.conf`.
 All three configurations assume several paths that might need to be adjusted.
 
 Binary:              `/usr/bin/neodashd`  
-Configuration file:  `/etc/neodash/neodash.conf`  
+Configuration file:  `/etc/neodashcore/neodash.conf`  
 Data directory:      `/var/lib/neodashd`  
 PID file:            `/var/run/neodashd/neodashd.pid` (OpenRC and Upstart) or `/var/lib/neodashd/neodashd.pid` (systemd)  
 Lock file:           `/var/lock/subsys/neodashd` (CentOS)  
 
 The configuration file, PID directory (if applicable) and data directory
-should all be owned by the neodash user and group.  It is advised for security
+should all be owned by the neodashcore user and group.  It is advised for security
 reasons to make the configuration file and data directory only readable by the
-neodash user and group.  Access to neodash-cli and other neodashd rpc clients
+neodashcore user and group.  Access to neodash-cli and other neodashd rpc clients
 can then be controlled by group membership.
 
 3b) Mac OS X
 
 Binary:              `/usr/local/bin/neodashd`  
-Configuration file:  `~/Library/Application Support/Neodash/neodash.conf`  
-Data directory:      `~/Library/Application Support/Neodash`
-Lock file:           `~/Library/Application Support/Neodash/.lock`
+Configuration file:  `~/Library/Application Support/NeodashCore/neodash.conf`  
+Data directory:      `~/Library/Application Support/NeodashCore`
+Lock file:           `~/Library/Application Support/NeodashCore/.lock`
 
 4. Installing Service Configuration
 -----------------------------------
@@ -104,7 +104,7 @@ use old versions of Upstart and do not supply the start-stop-daemon utility.
 Copy neodashd.init to /etc/init.d/neodashd. Test by running `service neodashd start`.
 
 Using this script, you can adjust the path and flags to the neodashd program by
-setting the NDASHD and FLAGS environment variables in the file
+setting the NEODASHD and FLAGS environment variables in the file
 /etc/sysconfig/neodashd. You can also use the DAEMONOPTS environment variable here.
 
 4e) Mac OS X
@@ -116,7 +116,7 @@ This Launch Agent will cause neodashd to start whenever the user logs in.
 
 NOTE: This approach is intended for those wanting to run neodashd as the current user.
 You will need to modify org.neodash.neodashd.plist if you intend to use it as a
-Launch Daemon with a dedicated neodash user.
+Launch Daemon with a dedicated neodashcore user.
 
 5. Auto-respawn
 -----------------------------------

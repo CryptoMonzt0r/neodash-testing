@@ -12,8 +12,8 @@ class CCoinControl
 {
 public:
     CTxDestination destChange;
-    bool useDarkSend;
-    bool useInstantX;
+    bool fUsePrivateSend;
+    bool fUseInstantSend;
     //! If false, allows unselected inputs, but requires all selected inputs be used
     bool fAllowOtherInputs;
     //! Includes watch only addresses which match the ISMINE_WATCH_SOLVABLE criteria
@@ -32,8 +32,8 @@ public:
         fAllowOtherInputs = false;
         fAllowWatchOnly = false;
         setSelected.clear();
-        useInstantX = false;
-        useDarkSend = true;
+        fUseInstantSend = false;
+        fUsePrivateSend = true;
         nMinimumTotalFee = 0;
     }
 
@@ -42,10 +42,9 @@ public:
         return (setSelected.size() > 0);
     }
 
-    bool IsSelected(const uint256& hash, unsigned int n) const
+    bool IsSelected(const COutPoint& output) const
     {
-        COutPoint outpt(hash, n);
-        return (setSelected.count(outpt) > 0);
+        return (setSelected.count(output) > 0);
     }
 
     void Select(const COutPoint& output)

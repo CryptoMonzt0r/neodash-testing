@@ -1,19 +1,37 @@
-Neodash Core staging tree 1.0.0
-===============================
+Neodash Core staging tree 0.12.2.2
 
+https://www.neodash-crypto.com
 
+https://bitcointalk.org/index.php?topic=2272607.0
 
 What is Neodash?
-----------------
 
-Neodash is an experimental new digital currency that enables anonymous, instant
-payments to anyone, anywhere in the world. Neodash uses peer-to-peer technology
-to operate with no central authority: managing transactions and issuing money
-are carried out collectively by the network. Neodash Core is the name of the open
-source software which enables the use of this currency.
+Neodash is an experimental new digital currency that enables anonymous, instant payments to anyone, anywhere in the world. Neodash uses peer-to-peer technology to operate with no central authority: managing transactions and issuing money are carried out collectively by the network. Neodash Core is the name of the open source software which enables the use of this currency.
 
-NeoDash is a new decentralized digital currency. Called to correct the imperfection of DASH.
-NeoDash uses a hash algorithm NeoScrypt, adapted for simple miners. Neoscrypt is protected from ASIC.
-The indisputable advantage of NeoDash is a more cogent accrual of reward for the found block. 50% gets a miner, 
-50% receives investors Masternodes.
+For more information, as well as an immediately useable, binary version of the Neodash Core software, see https://bitcointalk.org/index.php?topic=2272607.0.
 
+License
+
+Neodash Core is released under the terms of the MIT license. See COPYING for more information or see https://opensource.org/licenses/MIT.
+
+Development Process
+
+The master branch is meant to be stable. Development is normally done in separate branches. Tags are created to indicate new official, stable release versions of Neodash Core.
+
+The contribution workflow is described in CONTRIBUTING.md.
+
+Testing
+
+Testing and code review is the bottleneck for development; we get more pull requests than we can review and test on short notice. Please be patient and help out by testing other people's pull requests, and remember this is a security-critical project where any mistake might cost people lots of money.
+
+Automated Testing
+
+Developers are strongly encouraged to write unit tests for new code, and to submit new unit tests for old code. Unit tests can be compiled and run (assuming they weren't disabled in configure) with: make check
+
+There are also regression and integration tests of the RPC interface, written in Python, that are run automatically on the build server. These tests can be run (if the test dependencies are installed) with: qa/pull-tester/rpc-tests.py
+
+The Travis CI system makes sure that every pull request is built for Windows and Linux, OS X, and that unit and sanity tests are automatically run.
+
+Manual Quality Assurance (QA) Testing
+
+Changes should be tested by somebody other than the developer who wrote the code. This is especially important for large or high-risk changes. It is useful to add a test plan to the pull request description if testing the changes is not straightforward.

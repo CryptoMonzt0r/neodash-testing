@@ -1,12 +1,12 @@
 
-// Copyright (c) 2014-2016 The Neodash Core developers
+// Copyright (c) 2014-2017 The Neodash Core developers
 // Distributed under the MIT/X11 software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
 #ifndef DARKSEND_RELAY_H
 #define DARKSEND_RELAY_H
 
-#include "main.h"
+#include "validation.h"
 #include "activemasternode.h"
 #include "masternodeman.h"
 

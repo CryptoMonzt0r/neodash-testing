@@ -1,4 +1,4 @@
-Neodash Core V1.0.0.0
+Neodash Core 0.12.2
 =====================
 
 Intro

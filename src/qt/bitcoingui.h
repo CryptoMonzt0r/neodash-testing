@@ -30,6 +30,7 @@ class UnitDisplayStatusBarControl;
 class WalletFrame;
 class WalletModel;
 class HelpMessageDialog;
+class ModalOverlay;
 class MasternodeList;
 
 class CWallet;
@@ -74,6 +75,7 @@ public:
 protected:
     void changeEvent(QEvent *e);
     void closeEvent(QCloseEvent *event);
+    void showEvent(QShowEvent *event);
     void dragEnterEvent(QDragEnterEvent *event);
     void dropEvent(QDropEvent *event);
     bool eventFilter(QObject *object, QEvent *event);
@@ -84,7 +86,8 @@ private:
 
     UnitDisplayStatusBarControl *unitDisplayControl;
     QLabel *labelEncryptionIcon;
-    QPushButton *labelConnectionsIcon;
+    QLabel *labelWalletHDStatusIcon;
+    QLabel *labelConnectionsIcon;
     QLabel *labelBlocksIcon;
     QLabel *progressBarLabel;
     QProgressBar *progressBar;
@@ -122,12 +125,15 @@ private:
     QAction *showBackupsAction;
     QAction *openAction;
     QAction *showHelpMessageAction;
+    QAction *showPrivateSendHelpAction;
 
     QSystemTrayIcon *trayIcon;
     QMenu *trayIconMenu;
+    QMenu *dockIconMenu;
     Notificator *notificator;
     RPCConsole *rpcConsole;
     HelpMessageDialog *helpMessageDialog;
+    ModalOverlay *modalOverlay;
 
     /** Keep track of previous number of blocks, to detect progress */
     int prevBlocks;
@@ -144,7 +150,7 @@ private:
     /** Create system tray icon and notification */
     void createTrayIcon(const NetworkStyle *networkStyle);
     /** Create system tray menu (or setup the dock menu) */
-    void createTrayIconMenu();
+    void createIconMenu(QMenu *pmenu);
 
     /** Enable or disable all wallet-related actions */
     void setWalletActionsEnabled(bool enabled);
@@ -153,6 +159,11 @@ private:
     void subscribeToCoreSignals();
     /** Disconnect core signals from GUI client */
     void unsubscribeFromCoreSignals();
+
+    /** Update UI with latest network info from model. */
+    void updateNetworkState();
+
+    void updateHeadersSyncProgressLabel();
 
 Q_SIGNALS:
     /** Signal raised when a URI was entered or dragged to the GUI */
@@ -163,10 +174,12 @@ Q_SIGNALS:
 public Q_SLOTS:
     /** Set number of connections shown in the UI */
     void setNumConnections(int count);
+    /** Set network state shown in the UI */
+    void setNetworkActive(bool networkActive);
     /** Get restart command-line parameters and request restart */
     void handleRestart(QStringList args);
     /** Set number of blocks and last block date shown in the UI */
-    void setNumBlocks(int count, const QDateTime& blockDate, double nVerificationProgress);
+    void setNumBlocks(int count, const QDateTime& blockDate, double nVerificationProgress, bool headers);
     /** Set additional data sync status shown in the UI */
     void setAdditionalDataSyncProgress(double nSyncProgress);
 
@@ -180,6 +193,12 @@ public Q_SLOTS:
     void message(const QString &title, const QString &message, unsigned int style, bool *ret = NULL);
 
 #ifdef ENABLE_WALLET
+    /** Set the hd-enabled status as shown in the UI.
+     @param[in] status            current hd enabled status
+     @see WalletModel::EncryptionStatus
+     */
+    void setHDStatus(int hdEnabled);
+
     /** Set the encryption status as shown in the UI.
        @param[in] status            current encryption status
        @see WalletModel::EncryptionStatus
@@ -236,6 +255,8 @@ private Q_SLOTS:
 
     /** Show help message dialog */
     void showHelpMessageClicked();
+    /** Show PrivateSend help message dialog */
+    void showPrivateSendHelpClicked();
 #ifndef Q_OS_MAC
     /** Handle tray icon clicked */
     void trayIconActivated(QSystemTrayIcon::ActivationReason reason);
@@ -251,6 +272,14 @@ private Q_SLOTS:
 
     /** Show progress dialog e.g. for verifychain */
     void showProgress(const QString &title, int nProgress);
+    
+    /** When hideTrayIcon setting is changed in OptionsModel hide or show the icon accordingly. */
+    void setTrayIconVisible(bool);
+
+    /** Toggle networking */
+    void toggleNetworkActive();
+
+    void showModalOverlay();
 };
 
 class UnitDisplayStatusBarControl : public QLabel

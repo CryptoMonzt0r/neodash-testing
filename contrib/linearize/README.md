@@ -3,7 +3,7 @@ Construct a linear, no-fork, best version of the blockchain.
 
 ## Step 0: Install neodash_hash
 
-https://github.com/CryptoMonzt0r/neodash_hash
+https://github.com/neodashpay/neodash_hash
 
 ## Step 1: Download hash list
 

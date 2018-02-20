@@ -32,18 +32,18 @@ Instructions: Homebrew
 
 #### Install dependencies using Homebrew
 
-    brew install autoconf automake berkeley-db4 libtool boost miniupnpc openssl pkg-config protobuf qt5 libevent
+    brew install autoconf automake berkeley-db4 libtool boost miniupnpc openssl pkg-config protobuf libevent qt
 
-NOTE: Building with Qt4 is still supported, however, could result in a broken UI. As such, building with Qt5 is recommended.
+NOTE: Building with Qt4 is still supported, however, doing so could result in a broken UI. Therefore, building with Qt5 is recommended. Be aware that Qt5 5.7+ requires C++11 compiler support.
 
-### Building `neodash`
+### Building Neodash Core
 
 1. Clone the GitHub tree to get the source code and go into the directory.
 
-        git clone https://github.com/CryptoMonzt0r/neodash.git
+        git clone https://github.com/neodashpay/neodash.git
         cd neodash
 
-2.  Build neodash-core:
+2.  Build Neodash Core:
     This will configure and build the headless neodash binaries as well as the gui (if Qt is found).
     You can disable the gui build by passing `--without-gui` to configure.
 
@@ -81,7 +81,7 @@ You can ignore this section if you are building `neodashd` for your own use.
 
 neodashd/neodash-cli binaries are not included in the Neodash-Qt.app bundle.
 
-If you are building `neodashd` or `NeoDash Core` for others, your build machine should be set up
+If you are building `neodashd` or `Neodash Core` for others, your build machine should be set up
 as follows for maximum compatibility:
 
 All dependencies should be compiled with these flags:
@@ -102,14 +102,14 @@ directory. We have to first create the RPC configuration file, though.
 Run `./neodashd` to get the filename where it should be put, or just try these
 commands:
 
-    echo -e "rpcuser=neodashrpc\nrpcpassword=$(xxd -l 16 -p /dev/urandom)" > "/Users/${USER}/Library/Application Support/Neodash/neodash.conf"
-    chmod 600 "/Users/${USER}/Library/Application Support/Neodash/neodash.conf"
+    echo -e "rpcuser=neodashrpc\nrpcpassword=$(xxd -l 16 -p /dev/urandom)" > "/Users/${USER}/Library/Application Support/NeodashCore/neodash.conf"
+    chmod 600 "/Users/${USER}/Library/Application Support/NeodashCore/neodash.conf"
 
 The next time you run it, it will start downloading the blockchain, but it won't
 output anything while it's doing this. This process may take several hours;
 you can monitor its process by looking at the debug.log file, like this:
 
-    tail -f $HOME/Library/Application\ Support/Neodash/debug.log
+    tail -f $HOME/Library/Application\ Support/NeodashCore/debug.log
 
 Other commands:
 -------

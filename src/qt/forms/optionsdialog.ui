@@ -174,6 +174,16 @@
            </widget>
           </item>
           <item>
+           <widget class="QCheckBox" name="lowKeysWarning">
+            <property name="toolTip">
+             <string>Show warning dialog when PrivateSend detects that wallet has very low number of keys left.</string>
+            </property>
+            <property name="text">
+             <string>Warn if PrivateSend is running out of keys</string>
+            </property>
+           </widget>
+          </item>
+          <item>
            <widget class="QCheckBox" name="privateSendMultiSession">
             <property name="toolTip">
              <string>Whether to use experimental PrivateSend mode with multiple mixing sessions per block.&lt;br/&gt;Note: You must use this feature carefully.&lt;br/&gt;Make sure you always have recent wallet (auto)backup in a safe place!</string>
@@ -248,7 +258,7 @@
           </widget>
          </item>
          <item>
-          <widget class="QSpinBox" name="anonymizeNeodash">
+          <widget class="QSpinBox" name="privateSendAmount">
            <property name="minimum">
             <number>2</number>
            </property>
@@ -288,7 +298,7 @@
        <item>
         <widget class="QCheckBox" name="mapPortUpnp">
          <property name="toolTip">
-          <string>Automatically open the Neodash client port on the router. This only works when your router supports UPnP and it is enabled.</string>
+          <string>Automatically open the Neodash Core client port on the router. This only works when your router supports UPnP and it is enabled.</string>
          </property>
          <property name="text">
           <string>Map port using &amp;UPnP</string>
@@ -495,7 +505,7 @@
        <item>
         <widget class="QCheckBox" name="connectSocksTor">
          <property name="toolTip">
-          <string>Connect to the Bitcoin network through a separate SOCKS5 proxy for Tor hidden services.</string>
+          <string>Connect to the Neodash network through a separate SOCKS5 proxy for Tor hidden services.</string>
          </property>
          <property name="text">
           <string>Use separate SOCKS5 proxy to reach peers via Tor hidden services:</string>
@@ -603,6 +613,16 @@
        <string>&amp;Window</string>
       </attribute>
       <layout class="QVBoxLayout" name="verticalLayout_Window">
+       <item>
+        <widget class="QCheckBox" name="hideTrayIcon">
+         <property name="toolTip">
+          <string>&amp;Hide the icon from the system tray.</string>
+         </property>
+         <property name="text">
+          <string>Hide tray icon</string>
+         </property>
+        </widget>
+       </item>
        <item>
         <widget class="QCheckBox" name="minimizeToTray">
          <property name="toolTip">

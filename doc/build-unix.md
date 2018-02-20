@@ -6,7 +6,7 @@ Some notes on how to build Neodash Core in Unix.
 
 Note
 ---------------------
-Always use absolute paths to configure and compile neodash and the dependencies,
+Always use absolute paths to configure and compile Neodash Core and the dependencies,
 for example, when specifying the the path of the dependency:
 
 	../dist/configure --enable-cxx --disable-shared --with-pic --prefix=$BDB_PREFIX
@@ -46,6 +46,7 @@ Optional dependencies:
  qt          | GUI              | GUI toolkit (only needed when GUI enabled)
  protobuf    | Payments in GUI  | Data interchange format used for payment protocol (only needed when GUI enabled)
  libqrencode | QR codes in GUI  | Optional for generating QR codes (only needed when GUI enabled)
+ univalue    | Utility          | JSON parsing and encoding (bundled version will be used unless --with-system-univalue passed to configure)
  libzmq3     | ZMQ notification | Optional, allows generating ZMQ notifications (requires ZMQ version >= 4.x)
 
 For the versions used in the release, see [release-process.md](release-process.md) under *Fetch and build inputs*.
@@ -129,7 +130,7 @@ miniupnpc
 
 [miniupnpc](http://miniupnp.free.fr/) may be used for UPnP port mapping.  It can be downloaded from [here](
 http://miniupnp.tuxfamily.org/files/).  UPnP support is compiled in and
-turned off by default.  See the configure options for upnp behavior desired:
+turned off by default.  See the configure options for upnp behavior neodashd:
 
 	--without-miniupnpc      No UPnP support miniupnp not required
 	--disable-upnp-default   (the default) UPnP support turned off by default at runtime
@@ -211,7 +212,7 @@ Hardening enables the following features:
 
 * Non-executable Stack
     If the stack is executable then trivial stack based buffer overflow exploits are possible if
-    vulnerable buffers are found. By default, neodash should be built with a non-executable stack
+    vulnerable buffers are found. By default, Neodash Core should be built with a non-executable stack
     but if one of the libraries it uses asks for an executable stack or someone makes a mistake
     and uses a compiler extension which requires an executable stack, it will silently build an
     executable without the non-executable stack protection.
@@ -227,7 +228,7 @@ Hardening enables the following features:
 
 Disable-wallet mode
 --------------------
-When the intention is to run only a P2P node without a wallet, neodash may be compiled in
+When the intention is to run only a P2P node without a wallet, Neodash Core may be compiled in
 disable-wallet mode with:
 
     ./configure --disable-wallet

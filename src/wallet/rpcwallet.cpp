@@ -1,6 +1,6 @@
 // Copyright (c) 2010 Satoshi Nakamoto
 // Copyright (c) 2009-2015 The Bitcoin Core developers
-// Copyright (c) 2014-2016 The Neodash Core developers
+// Copyright (c) 2017 The Neodash Core developers
 // Distributed under the MIT software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
@@ -9,14 +9,14 @@
 #include "chain.h"
 #include "core_io.h"
 #include "init.h"
-#include "main.h"
+#include "instantx.h"
 #include "net.h"
-#include "netbase.h"
 #include "policy/rbf.h"
-#include "rpcserver.h"
+#include "rpc/server.h"
 #include "timedata.h"
 #include "util.h"
 #include "utilmoneystr.h"
+#include "validation.h"
 #include "wallet.h"
 #include "walletdb.h"
 #include "keepass.h"
@@ -60,9 +60,9 @@ void EnsureWalletIsUnlocked()
 void WalletTxToJSON(const CWalletTx& wtx, UniValue& entry)
 {
     int confirms = wtx.GetDepthInMainChain(false);
-    int confirmsTotal = GetIXConfirmations(wtx.GetHash()) + confirms;
-    entry.push_back(Pair("confirmations", confirmsTotal));
-    entry.push_back(Pair("bcconfirmations", confirms));
+    bool fLocked = instantsend.IsLockedInstantSendTransaction(wtx.GetHash());
+    entry.push_back(Pair("confirmations", confirms));
+    entry.push_back(Pair("instantlock", fLocked));
     if (wtx.IsCoinBase())
         entry.push_back(Pair("generated", true));
     if (confirms > 0)
@@ -114,7 +114,7 @@ UniValue getnewaddress(const UniValue& params, bool fHelp)
 {
     if (!EnsureWalletIsAvailable(fHelp))
         return NullUniValue;
-    
+
     if (fHelp || params.size() > 1)
         throw runtime_error(
             "getnewaddress ( \"account\" )\n"
@@ -137,12 +137,12 @@ UniValue getnewaddress(const UniValue& params, bool fHelp)
     if (params.size() > 0)
         strAccount = AccountFromValue(params[0]);
 
-    if (!pwalletMain->IsLocked())
+    if (!pwalletMain->IsLocked(true))
         pwalletMain->TopUpKeyPool();
 
     // Generate a new key that is added to wallet
     CPubKey newKey;
-    if (!pwalletMain->GetKeyFromPool(newKey))
+    if (!pwalletMain->GetKeyFromPool(newKey, false))
         throw JSONRPCError(RPC_WALLET_KEYPOOL_RAN_OUT, "Error: Keypool ran out, please call keypoolrefill first");
     CKeyID keyID = newKey.GetID();
 
@@ -179,7 +179,7 @@ CBitcoinAddress GetAccountAddress(string strAccount, bool bForceNew=false)
     // Generate a new key
     if (!account.vchPubKey.IsValid() || bForceNew || bKeyUsed)
     {
-        if (!pwalletMain->GetKeyFromPool(account.vchPubKey))
+        if (!pwalletMain->GetKeyFromPool(account.vchPubKey, false))
             throw JSONRPCError(RPC_WALLET_KEYPOOL_RAN_OUT, "Error: Keypool ran out, please call keypoolrefill first");
 
         pwalletMain->SetAddressBook(account.vchPubKey.GetID(), strAccount, "receive");
@@ -193,7 +193,7 @@ UniValue getaccountaddress(const UniValue& params, bool fHelp)
 {
     if (!EnsureWalletIsAvailable(fHelp))
         return NullUniValue;
-    
+
     if (fHelp || params.size() != 1)
         throw runtime_error(
             "getaccountaddress \"account\"\n"
@@ -225,7 +225,7 @@ UniValue getrawchangeaddress(const UniValue& params, bool fHelp)
 {
     if (!EnsureWalletIsAvailable(fHelp))
         return NullUniValue;
-    
+
     if (fHelp || params.size() > 1)
         throw runtime_error(
             "getrawchangeaddress\n"
@@ -240,12 +240,12 @@ UniValue getrawchangeaddress(const UniValue& params, bool fHelp)
 
     LOCK2(cs_main, pwalletMain->cs_wallet);
 
-    if (!pwalletMain->IsLocked())
+    if (!pwalletMain->IsLocked(true))
         pwalletMain->TopUpKeyPool();
 
     CReserveKey reservekey(pwalletMain);
     CPubKey vchPubKey;
-    if (!reservekey.GetReservedKey(vchPubKey))
+    if (!reservekey.GetReservedKey(vchPubKey, true))
         throw JSONRPCError(RPC_WALLET_KEYPOOL_RAN_OUT, "Error: Keypool ran out, please call keypoolrefill first");
 
     reservekey.KeepKey();
@@ -260,7 +260,7 @@ UniValue setaccount(const UniValue& params, bool fHelp)
 {
     if (!EnsureWalletIsAvailable(fHelp))
         return NullUniValue;
-    
+
     if (fHelp || params.size() < 1 || params.size() > 2)
         throw runtime_error(
             "setaccount \"neodashaddress\" \"account\"\n"
@@ -269,8 +269,8 @@ UniValue setaccount(const UniValue& params, bool fHelp)
             "1. \"neodashaddress\"  (string, required) The neodash address to be associated with an account.\n"
             "2. \"account\"         (string, required) The account to assign the address to.\n"
             "\nExamples:\n"
-            + HelpExampleCli("setaccount", "\"XwnLY9Tf7Zsef8gMGL2fhWA9ZmMjt4KPwg\" \"tabby\"")
-            + HelpExampleRpc("setaccount", "\"XwnLY9Tf7Zsef8gMGL2fhWA9ZmMjt4KPwg\", \"tabby\"")
+            + HelpExampleCli("setaccount", "\"DExeHtoRwqNu2SKwmUdJSbbw4T4HYpFe8N\" \"tabby\"")
+            + HelpExampleRpc("setaccount", "\"DExeHtoRwqNu2SKwmUdJSbbw4T4HYpFe8N\", \"tabby\"")
         );
 
     LOCK2(cs_main, pwalletMain->cs_wallet);
@@ -306,7 +306,7 @@ UniValue getaccount(const UniValue& params, bool fHelp)
 {
     if (!EnsureWalletIsAvailable(fHelp))
         return NullUniValue;
-    
+
     if (fHelp || params.size() != 1)
         throw runtime_error(
             "getaccount \"neodashaddress\"\n"
@@ -316,8 +316,8 @@ UniValue getaccount(const UniValue& params, bool fHelp)
             "\nResult:\n"
             "\"accountname\"        (string) the account address\n"
             "\nExamples:\n"
-            + HelpExampleCli("getaccount", "\"XwnLY9Tf7Zsef8gMGL2fhWA9ZmMjt4KPwg\"")
-            + HelpExampleRpc("getaccount", "\"XwnLY9Tf7Zsef8gMGL2fhWA9ZmMjt4KPwg\"")
+            + HelpExampleCli("getaccount", "\"DExeHtoRwqNu2SKwmUdJSbbw4T4HYpFe8N\"")
+            + HelpExampleRpc("getaccount", "\"DExeHtoRwqNu2SKwmUdJSbbw4T4HYpFe8N\"")
         );
 
     LOCK2(cs_main, pwalletMain->cs_wallet);
@@ -338,7 +338,7 @@ UniValue getaddressesbyaccount(const UniValue& params, bool fHelp)
 {
     if (!EnsureWalletIsAvailable(fHelp))
         return NullUniValue;
-    
+
     if (fHelp || params.size() != 1)
         throw runtime_error(
             "getaddressesbyaccount \"account\"\n"
@@ -371,7 +371,7 @@ UniValue getaddressesbyaccount(const UniValue& params, bool fHelp)
     return ret;
 }
 
-static void SendMoney(const CTxDestination &address, CAmount nValue, bool fSubtractFeeFromAmount, CWalletTx& wtxNew, bool fUseIX=false, bool fUseDS=false)
+static void SendMoney(const CTxDestination &address, CAmount nValue, bool fSubtractFeeFromAmount, CWalletTx& wtxNew, bool fUseInstantSend=false, bool fUsePrivateSend=false)
 {
     CAmount curBalance = pwalletMain->GetBalance();
 
@@ -381,6 +381,9 @@ static void SendMoney(const CTxDestination &address, CAmount nValue, bool fSubtr
 
     if (nValue > curBalance)
         throw JSONRPCError(RPC_WALLET_INSUFFICIENT_FUNDS, "Insufficient funds");
+
+    if (pwalletMain->GetBroadcastTransactions() && !g_connman)
+        throw JSONRPCError(RPC_CLIENT_P2P_DISABLED, "Error: Peer-to-peer functionality missing or disabled");
 
     // Parse Neodash address
     CScript scriptPubKey = GetScriptForDestination(address);
@@ -394,12 +397,12 @@ static void SendMoney(const CTxDestination &address, CAmount nValue, bool fSubtr
     CRecipient recipient = {scriptPubKey, nValue, fSubtractFeeFromAmount};
     vecSend.push_back(recipient);
     if (!pwalletMain->CreateTransaction(vecSend, wtxNew, reservekey, nFeeRequired, nChangePosRet,
-                                         strError, NULL, true, fUseDS ? ONLY_DENOMINATED : ALL_COINS, fUseIX)) {
+                                         strError, NULL, true, fUsePrivateSend ? ONLY_DENOMINATED : ALL_COINS, fUseInstantSend)) {
         if (!fSubtractFeeFromAmount && nValue + nFeeRequired > pwalletMain->GetBalance())
             strError = strprintf("Error: This transaction requires a transaction fee of at least %s because of its amount, complexity, or use of recently received funds!", FormatMoney(nFeeRequired));
         throw JSONRPCError(RPC_WALLET_ERROR, strError);
     }
-    if (!pwalletMain->CommitTransaction(wtxNew, reservekey, fUseIX ? NetMsgType::IX : NetMsgType::TX))
+    if (!pwalletMain->CommitTransaction(wtxNew, reservekey, g_connman.get(), fUseInstantSend ? NetMsgType::TXLOCKREQUEST : NetMsgType::TX))
         throw JSONRPCError(RPC_WALLET_ERROR, "Error: The transaction was rejected! This might happen if some of the coins in your wallet were already spent, such as if you used a copy of wallet.dat and coins were spent in the copy but not marked as spent here.");
 }
 
@@ -407,14 +410,14 @@ UniValue sendtoaddress(const UniValue& params, bool fHelp)
 {
     if (!EnsureWalletIsAvailable(fHelp))
         return NullUniValue;
-    
+
     if (fHelp || params.size() < 2 || params.size() > 7)
         throw runtime_error(
             "sendtoaddress \"neodashaddress\" amount ( \"comment\" \"comment-to\" subtractfeefromamount use_is use_ps )\n"
             "\nSend an amount to a given address.\n"
             + HelpRequiringPassphrase() +
             "\nArguments:\n"
-            "1. \"neodashaddress\"  (string, required) The neodash address to send to.\n"
+            "1. \"neodashaddress\" (string, required) The neodash address to send to.\n"
             "2. \"amount\"      (numeric or string, required) The amount in " + CURRENCY_UNIT + " to send. eg 0.1\n"
             "3. \"comment\"     (string, optional) A comment used to store what the transaction is for. \n"
             "                             This is not part of the transaction, just kept in your wallet.\n"
@@ -422,16 +425,16 @@ UniValue sendtoaddress(const UniValue& params, bool fHelp)
             "                             to which you're sending the transaction. This is not part of the \n"
             "                             transaction, just kept in your wallet.\n"
             "5. subtractfeefromamount  (boolean, optional, default=false) The fee will be deducted from the amount being sent.\n"
-            "                             The recipient will receive less bitcoins than you enter in the amount field.\n"
+            "                             The recipient will receive less amount of Neodash than you enter in the amount field.\n"
             "6. \"use_is\"      (bool, optional) Send this transaction as InstantSend (default: false)\n"
             "7. \"use_ps\"      (bool, optional) Use anonymized funds only (default: false)\n"
             "\nResult:\n"
             "\"transactionid\"  (string) The transaction id.\n"
             "\nExamples:\n"
-            + HelpExampleCli("sendtoaddress", "\"XwnLY9Tf7Zsef8gMGL2fhWA9ZmMjt4KPwg\" 0.1")
-            + HelpExampleCli("sendtoaddress", "\"XwnLY9Tf7Zsef8gMGL2fhWA9ZmMjt4KPwg\" 0.1 \"donation\" \"seans outpost\"")
-            + HelpExampleCli("sendtoaddress", "\"XwnLY9Tf7Zsef8gMGL2fhWA9ZmMjt4KPwg\" 0.1 \"\" \"\" true")
-            + HelpExampleRpc("sendtoaddress", "\"XwnLY9Tf7Zsef8gMGL2fhWA9ZmMjt4KPwg\", 0.1, \"donation\", \"seans outpost\"")
+            + HelpExampleCli("sendtoaddress", "\"DExeHtoRwqNu2SKwmUdJSbbw4T4HYpFe8N\" 0.1")
+            + HelpExampleCli("sendtoaddress", "\"DExeHtoRwqNu2SKwmUdJSbbw4T4HYpFe8N\" 0.1 \"donation\" \"seans outpost\"")
+            + HelpExampleCli("sendtoaddress", "\"DExeHtoRwqNu2SKwmUdJSbbw4T4HYpFe8N\" 0.1 \"\" \"\" true")
+            + HelpExampleRpc("sendtoaddress", "\"DExeHtoRwqNu2SKwmUdJSbbw4T4HYpFe8N\", 0.1, \"donation\", \"seans outpost\"")
         );
 
     LOCK2(cs_main, pwalletMain->cs_wallet);
@@ -456,16 +459,16 @@ UniValue sendtoaddress(const UniValue& params, bool fHelp)
     if (params.size() > 4)
         fSubtractFeeFromAmount = params[4].get_bool();
 
-    bool fUseIX = false;
-    bool fUseDS = false;
+    bool fUseInstantSend = false;
+    bool fUsePrivateSend = false;
     if (params.size() > 5)
-        fUseIX = params[5].get_bool();
+        fUseInstantSend = params[5].get_bool();
     if (params.size() > 6)
-        fUseDS = params[6].get_bool();
+        fUsePrivateSend = params[6].get_bool();
 
     EnsureWalletIsUnlocked();
 
-    SendMoney(address.Get(), nAmount, fSubtractFeeFromAmount, wtx, fUseIX, fUseDS);
+    SendMoney(address.Get(), nAmount, fSubtractFeeFromAmount, wtx, fUseInstantSend, fUsePrivateSend);
 
     return wtx.GetHash().GetHex();
 }
@@ -489,14 +492,14 @@ UniValue instantsendtoaddress(const UniValue& params, bool fHelp)
             "                             to which you're sending the transaction. This is not part of the \n"
             "                             transaction, just kept in your wallet.\n"
             "5. subtractfeefromamount  (boolean, optional, default=false) The fee will be deducted from the amount being sent.\n"
-            "                             The recipient will receive less bitcoins than you enter in the amount field.\n"
+            "                             The recipient will receive less amount of Neodash than you enter in the amount field.\n"
             "\nResult:\n"
             "\"transactionid\"  (string) The transaction id.\n"
             "\nExamples:\n"
-            + HelpExampleCli("instantsendtoaddress", "\"XwnLY9Tf7Zsef8gMGL2fhWA9ZmMjt4KPwg\" 0.1")
-            + HelpExampleCli("instantsendtoaddress", "\"XwnLY9Tf7Zsef8gMGL2fhWA9ZmMjt4KPwg\" 0.1 \"donation\" \"seans outpost\"")
-            + HelpExampleCli("instantsendtoaddress", "\"XwnLY9Tf7Zsef8gMGL2fhWA9ZmMjt4KPwg\" 0.1 \"\" \"\" true")
-            + HelpExampleRpc("instantsendtoaddress", "\"XwnLY9Tf7Zsef8gMGL2fhWA9ZmMjt4KPwg\", 0.1, \"donation\", \"seans outpost\"")
+            + HelpExampleCli("instantsendtoaddress", "\"DExeHtoRwqNu2SKwmUdJSbbw4T4HYpFe8N\" 0.1")
+            + HelpExampleCli("instantsendtoaddress", "\"DExeHtoRwqNu2SKwmUdJSbbw4T4HYpFe8N\" 0.1 \"donation\" \"seans outpost\"")
+            + HelpExampleCli("instantsendtoaddress", "\"DExeHtoRwqNu2SKwmUdJSbbw4T4HYpFe8N\" 0.1 \"\" \"\" true")
+            + HelpExampleRpc("instantsendtoaddress", "\"DExeHtoRwqNu2SKwmUdJSbbw4T4HYpFe8N\", 0.1, \"donation\", \"seans outpost\"")
         );
 
     LOCK2(cs_main, pwalletMain->cs_wallet);
@@ -532,7 +535,7 @@ UniValue listaddressgroupings(const UniValue& params, bool fHelp)
 {
     if (!EnsureWalletIsAvailable(fHelp))
         return NullUniValue;
-    
+
     if (fHelp)
         throw runtime_error(
             "listaddressgroupings\n"
@@ -583,7 +586,7 @@ UniValue signmessage(const UniValue& params, bool fHelp)
 {
     if (!EnsureWalletIsAvailable(fHelp))
         return NullUniValue;
-    
+
     if (fHelp || params.size() != 2)
         throw runtime_error(
             "signmessage \"neodashaddress\" \"message\"\n"
@@ -598,11 +601,11 @@ UniValue signmessage(const UniValue& params, bool fHelp)
             "\nUnlock the wallet for 30 seconds\n"
             + HelpExampleCli("walletpassphrase", "\"mypassphrase\" 30") +
             "\nCreate the signature\n"
-            + HelpExampleCli("signmessage", "\"XwnLY9Tf7Zsef8gMGL2fhWA9ZmMjt4KPwg\" \"my message\"") +
+            + HelpExampleCli("signmessage", "\"DExeHtoRwqNu2SKwmUdJSbbw4T4HYpFe8N\" \"my message\"") +
             "\nVerify the signature\n"
-            + HelpExampleCli("verifymessage", "\"XwnLY9Tf7Zsef8gMGL2fhWA9ZmMjt4KPwg\" \"signature\" \"my message\"") +
+            + HelpExampleCli("verifymessage", "\"DExeHtoRwqNu2SKwmUdJSbbw4T4HYpFe8N\" \"signature\" \"my message\"") +
             "\nAs json rpc\n"
-            + HelpExampleRpc("signmessage", "\"XwnLY9Tf7Zsef8gMGL2fhWA9ZmMjt4KPwg\", \"my message\"")
+            + HelpExampleRpc("signmessage", "\"DExeHtoRwqNu2SKwmUdJSbbw4T4HYpFe8N\", \"my message\"")
         );
 
     LOCK2(cs_main, pwalletMain->cs_wallet);
@@ -639,25 +642,26 @@ UniValue getreceivedbyaddress(const UniValue& params, bool fHelp)
 {
     if (!EnsureWalletIsAvailable(fHelp))
         return NullUniValue;
-    
-    if (fHelp || params.size() < 1 || params.size() > 2)
+
+    if (fHelp || params.size() < 1 || params.size() > 3)
         throw runtime_error(
-            "getreceivedbyaddress \"neodashaddress\" ( minconf )\n"
-            "\nReturns the total amount received by the given neodashaddress in transactions with at least minconf confirmations.\n"
+            "getreceivedbyaddress \"neodashaddress\" ( minconf addlockconf )\n"
+            "\nReturns the total amount received by the given neodashaddress in transactions with specified minimum number of confirmations.\n"
             "\nArguments:\n"
             "1. \"neodashaddress\"  (string, required) The neodash address for transactions.\n"
-            "2. minconf             (numeric, optional, default=1) Only include transactions confirmed at least this many times.\n"
+            "2. minconf        (numeric, optional, default=1) Only include transactions confirmed at least this many times.\n"
+            "3. addlockconf    (bool, optional, default=false) Whether to add " + std::to_string(nInstantSendDepth) + " confirmations to transactions locked via InstantSend.\n"
             "\nResult:\n"
-            "amount   (numeric) The total amount in " + CURRENCY_UNIT + " received at this address.\n"
+            "amount            (numeric) The total amount in " + CURRENCY_UNIT + " received at this address.\n"
             "\nExamples:\n"
             "\nThe amount from transactions with at least 1 confirmation\n"
-            + HelpExampleCli("getreceivedbyaddress", "\"XwnLY9Tf7Zsef8gMGL2fhWA9ZmMjt4KPwg\"") +
+            + HelpExampleCli("getreceivedbyaddress", "\"DExeHtoRwqNu2SKwmUdJSbbw4T4HYpFe8N\"") +
             "\nThe amount including unconfirmed transactions, zero confirmations\n"
-            + HelpExampleCli("getreceivedbyaddress", "\"XwnLY9Tf7Zsef8gMGL2fhWA9ZmMjt4KPwg\" 0") +
+            + HelpExampleCli("getreceivedbyaddress", "\"DExeHtoRwqNu2SKwmUdJSbbw4T4HYpFe8N\" 0") +
             "\nThe amount with at least 6 confirmation, very safe\n"
-            + HelpExampleCli("getreceivedbyaddress", "\"XwnLY9Tf7Zsef8gMGL2fhWA9ZmMjt4KPwg\" 6") +
+            + HelpExampleCli("getreceivedbyaddress", "\"DExeHtoRwqNu2SKwmUdJSbbw4T4HYpFe8N\" 6") +
             "\nAs a json rpc call\n"
-            + HelpExampleRpc("getreceivedbyaddress", "\"XwnLY9Tf7Zsef8gMGL2fhWA9ZmMjt4KPwg\", 6")
+            + HelpExampleRpc("getreceivedbyaddress", "\"DExeHtoRwqNu2SKwmUdJSbbw4T4HYpFe8N\", 6")
        );
 
     LOCK2(cs_main, pwalletMain->cs_wallet);
@@ -667,13 +671,14 @@ UniValue getreceivedbyaddress(const UniValue& params, bool fHelp)
     if (!address.IsValid())
         throw JSONRPCError(RPC_INVALID_ADDRESS_OR_KEY, "Invalid Neodash address");
     CScript scriptPubKey = GetScriptForDestination(address.Get());
-    if (!IsMine(*pwalletMain,scriptPubKey))
-        return (double)0.0;
+    if (!IsMine(*pwalletMain, scriptPubKey))
+        return ValueFromAmount(0);
 
     // Minimum confirmations
     int nMinDepth = 1;
     if (params.size() > 1)
         nMinDepth = params[1].get_int();
+    bool fAddLockConf = (params.size() > 2 && params[2].get_bool());
 
     // Tally
     CAmount nAmount = 0;
@@ -685,7 +690,7 @@ UniValue getreceivedbyaddress(const UniValue& params, bool fHelp)
 
         BOOST_FOREACH(const CTxOut& txout, wtx.vout)
             if (txout.scriptPubKey == scriptPubKey)
-                if (wtx.GetDepthInMainChain() >= nMinDepth)
+                if (wtx.GetDepthInMainChain(fAddLockConf) >= nMinDepth)
                     nAmount += txout.nValue;
     }
 
@@ -697,16 +702,17 @@ UniValue getreceivedbyaccount(const UniValue& params, bool fHelp)
 {
     if (!EnsureWalletIsAvailable(fHelp))
         return NullUniValue;
-    
-    if (fHelp || params.size() < 1 || params.size() > 2)
+
+    if (fHelp || params.size() < 1 || params.size() > 3)
         throw runtime_error(
-            "getreceivedbyaccount \"account\" ( minconf )\n"
-            "\nDEPRECATED. Returns the total amount received by addresses with <account> in transactions with at least [minconf] confirmations.\n"
+            "getreceivedbyaccount \"account\" ( minconf addlockconf )\n"
+            "\nDEPRECATED. Returns the total amount received by addresses with <account> in transactions with specified minimum number of confirmations.\n"
             "\nArguments:\n"
             "1. \"account\"      (string, required) The selected account, may be the default account using \"\".\n"
-            "2. minconf          (numeric, optional, default=1) Only include transactions confirmed at least this many times.\n"
+            "2. minconf        (numeric, optional, default=1) Only include transactions confirmed at least this many times.\n"
+            "3. addlockconf    (bool, optional, default=false) Whether to add " + std::to_string(nInstantSendDepth) + " confirmations to transactions locked via InstantSend.\n"
             "\nResult:\n"
-            "amount              (numeric) The total amount in " + CURRENCY_UNIT + " received for this account.\n"
+            "amount            (numeric) The total amount in " + CURRENCY_UNIT + " received for this account.\n"
             "\nExamples:\n"
             "\nAmount received by the default account with at least 1 confirmation\n"
             + HelpExampleCli("getreceivedbyaccount", "\"\"") +
@@ -724,6 +730,7 @@ UniValue getreceivedbyaccount(const UniValue& params, bool fHelp)
     int nMinDepth = 1;
     if (params.size() > 1)
         nMinDepth = params[1].get_int();
+    bool fAddLockConf = (params.size() > 2 && params[2].get_bool());
 
     // Get the set of pub keys assigned to account
     string strAccount = AccountFromValue(params[0]);
@@ -741,16 +748,16 @@ UniValue getreceivedbyaccount(const UniValue& params, bool fHelp)
         {
             CTxDestination address;
             if (ExtractDestination(txout.scriptPubKey, address) && IsMine(*pwalletMain, address) && setAddress.count(address))
-                if (wtx.GetDepthInMainChain() >= nMinDepth)
+                if (wtx.GetDepthInMainChain(fAddLockConf) >= nMinDepth)
                     nAmount += txout.nValue;
         }
     }
 
-    return (double)nAmount / (double)COIN;
+    return ValueFromAmount(nAmount);
 }
 
 
-CAmount GetAccountBalance(CWalletDB& walletdb, const string& strAccount, int nMinDepth, const isminefilter& filter)
+CAmount GetAccountBalance(CWalletDB& walletdb, const string& strAccount, int nMinDepth, const isminefilter& filter, bool fAddLockConf)
 {
     CAmount nBalance = 0;
 
@@ -758,13 +765,13 @@ CAmount GetAccountBalance(CWalletDB& walletdb, const string& strAccount, int nMi
     for (map<uint256, CWalletTx>::iterator it = pwalletMain->mapWallet.begin(); it != pwalletMain->mapWallet.end(); ++it)
     {
         const CWalletTx& wtx = (*it).second;
-        if (!CheckFinalTx(wtx) || wtx.GetBlocksToMaturity() > 0 || wtx.GetDepthInMainChain() < 0)
+        if (!CheckFinalTx(wtx) || wtx.GetBlocksToMaturity() > 0 || wtx.GetDepthInMainChain(fAddLockConf) < 0)
             continue;
 
         CAmount nReceived, nSent, nFee;
         wtx.GetAccountAmounts(strAccount, nReceived, nSent, nFee, filter);
 
-        if (nReceived != 0 && wtx.GetDepthInMainChain() >= nMinDepth)
+        if (nReceived != 0 && wtx.GetDepthInMainChain(fAddLockConf) >= nMinDepth)
             nBalance += nReceived;
         nBalance -= nSent + nFee;
     }
@@ -775,10 +782,10 @@ CAmount GetAccountBalance(CWalletDB& walletdb, const string& strAccount, int nMi
     return nBalance;
 }
 
-CAmount GetAccountBalance(const string& strAccount, int nMinDepth, const isminefilter& filter)
+CAmount GetAccountBalance(const string& strAccount, int nMinDepth, const isminefilter& filter, bool fAddLockConf)
 {
     CWalletDB walletdb(pwalletMain->strWalletFile);
-    return GetAccountBalance(walletdb, strAccount, nMinDepth, filter);
+    return GetAccountBalance(walletdb, strAccount, nMinDepth, filter, fAddLockConf);
 }
 
 
@@ -786,18 +793,19 @@ UniValue getbalance(const UniValue& params, bool fHelp)
 {
     if (!EnsureWalletIsAvailable(fHelp))
         return NullUniValue;
-    
-    if (fHelp || params.size() > 3)
+
+    if (fHelp || params.size() > 4)
         throw runtime_error(
-            "getbalance ( \"account\" minconf includeWatchonly )\n"
+            "getbalance ( \"account\" minconf addlockconf includeWatchonly )\n"
             "\nIf account is not specified, returns the server's total available balance.\n"
             "If account is specified (DEPRECATED), returns the balance in the account.\n"
             "Note that the account \"\" is not the same as leaving the parameter out.\n"
             "The server total may be different to the balance in the default \"\" account.\n"
             "\nArguments:\n"
-            "1. \"account\"      (string, optional) DEPRECATED. The selected account, or \"*\" for entire wallet. It may be the default account using \"\".\n"
+            "1. \"account\"        (string, optional) DEPRECATED. The selected account, or \"*\" for entire wallet. It may be the default account using \"\".\n"
             "2. minconf          (numeric, optional, default=1) Only include transactions confirmed at least this many times.\n"
-            "3. includeWatchonly (bool, optional, default=false) Also include balance in watchonly addresses (see 'importaddress')\n"
+            "3. addlockconf      (bool, optional, default=false) Whether to add " + std::to_string(nInstantSendDepth) + " confirmations to transactions locked via InstantSend.\n"
+            "4. includeWatchonly (bool, optional, default=false) Also include balance in watchonly addresses (see 'importaddress')\n"
             "\nResult:\n"
             "amount              (numeric) The total amount in " + CURRENCY_UNIT + " received for this account.\n"
             "\nExamples:\n"
@@ -817,9 +825,10 @@ UniValue getbalance(const UniValue& params, bool fHelp)
     int nMinDepth = 1;
     if (params.size() > 1)
         nMinDepth = params[1].get_int();
+    bool fAddLockConf = (params.size() > 2 && params[2].get_bool());
     isminefilter filter = ISMINE_SPENDABLE;
-    if(params.size() > 2)
-        if(params[2].get_bool())
+    if(params.size() > 3)
+        if(params[3].get_bool())
             filter = filter | ISMINE_WATCH_ONLY;
 
     if (params[0].get_str() == "*") {
@@ -838,7 +847,7 @@ UniValue getbalance(const UniValue& params, bool fHelp)
             list<COutputEntry> listReceived;
             list<COutputEntry> listSent;
             wtx.GetAmounts(listReceived, listSent, allFee, strSentAccount, filter);
-            if (wtx.GetDepthInMainChain() >= nMinDepth)
+            if (wtx.GetDepthInMainChain(fAddLockConf) >= nMinDepth)
             {
                 BOOST_FOREACH(const COutputEntry& r, listReceived)
                     nBalance += r.amount;
@@ -852,7 +861,7 @@ UniValue getbalance(const UniValue& params, bool fHelp)
 
     string strAccount = AccountFromValue(params[0]);
 
-    CAmount nBalance = GetAccountBalance(strAccount, nMinDepth, filter);
+    CAmount nBalance = GetAccountBalance(strAccount, nMinDepth, filter, fAddLockConf);
 
     return ValueFromAmount(nBalance);
 }
@@ -861,7 +870,7 @@ UniValue getunconfirmedbalance(const UniValue &params, bool fHelp)
 {
     if (!EnsureWalletIsAvailable(fHelp))
         return NullUniValue;
-    
+
     if (fHelp || params.size() > 0)
         throw runtime_error(
                 "getunconfirmedbalance\n"
@@ -877,19 +886,19 @@ UniValue movecmd(const UniValue& params, bool fHelp)
 {
     if (!EnsureWalletIsAvailable(fHelp))
         return NullUniValue;
-    
+
     if (fHelp || params.size() < 3 || params.size() > 5)
         throw runtime_error(
             "move \"fromaccount\" \"toaccount\" amount ( minconf \"comment\" )\n"
             "\nDEPRECATED. Move a specified amount from one account in your wallet to another.\n"
             "\nArguments:\n"
-            "1. \"fromaccount\"   (string, required) The name of the account to move funds from. May be the default account using \"\".\n"
-            "2. \"toaccount\"     (string, required) The name of the account to move funds to. May be the default account using \"\".\n"
-            "3. amount            (numeric) Quantity of " + CURRENCY_UNIT + " to move between accounts.\n"
-            "4. minconf           (numeric, optional, default=1) Only use funds with at least this many confirmations.\n"
-            "5. \"comment\"       (string, optional) An optional comment, stored in the wallet only.\n"
+            "1. \"fromaccount\"    (string, required) The name of the account to move funds from. May be the default account using \"\".\n"
+            "2. \"toaccount\"      (string, required) The name of the account to move funds to. May be the default account using \"\".\n"
+            "3. amount           (numeric) Quantity of " + CURRENCY_UNIT + " to move between accounts.\n"
+            "4. minconf          (numeric, optional, default=1) Only use funds with at least this many confirmations.\n"
+            "5. \"comment\"        (string, optional) An optional comment, stored in the wallet only.\n"
             "\nResult:\n"
-            "true|false           (boolean) true if successful.\n"
+            "true|false          (boolean) true if successful.\n"
             "\nExamples:\n"
             "\nMove 0.01 " + CURRENCY_UNIT + " from the default account to the account named tabby\n"
             + HelpExampleCli("move", "\"\" \"tabby\" 0.01") +
@@ -950,31 +959,32 @@ UniValue sendfrom(const UniValue& params, bool fHelp)
 {
     if (!EnsureWalletIsAvailable(fHelp))
         return NullUniValue;
-    
-    if (fHelp || params.size() < 3 || params.size() > 6)
+
+    if (fHelp || params.size() < 3 || params.size() > 7)
         throw runtime_error(
-            "sendfrom \"fromaccount\" \"toneodashaddress\" amount ( minconf \"comment\" \"comment-to\" )\n"
+            "sendfrom \"fromaccount\" \"toneodashaddress\" amount ( minconf addlockconf \"comment\" \"comment-to\" )\n"
             "\nDEPRECATED (use sendtoaddress). Sent an amount from an account to a neodash address."
             + HelpRequiringPassphrase() + "\n"
             "\nArguments:\n"
-            "1. \"fromaccount\"       (string, required) The name of the account to send funds from. May be the default account using \"\".\n"
+            "1. \"fromaccount\"    (string, required) The name of the account to send funds from. May be the default account using \"\".\n"
             "2. \"toneodashaddress\"  (string, required) The neodash address to send funds to.\n"
-            "3. amount                (numeric or string, required) The amount in " + CURRENCY_UNIT + " (transaction fee is added on top).\n"
-            "4. minconf               (numeric, optional, default=1) Only use funds with at least this many confirmations.\n"
-            "5. \"comment\"           (string, optional) A comment used to store what the transaction is for. \n"
+            "3. amount           (numeric or string, required) The amount in " + CURRENCY_UNIT + " (transaction fee is added on top).\n"
+            "4. minconf          (numeric, optional, default=1) Only use funds with at least this many confirmations.\n"
+            "5. addlockconf      (bool, optional, default=false) Whether to add " + std::to_string(nInstantSendDepth) + " confirmations to transactions locked via InstantSend.\n"
+            "6. \"comment\"        (string, optional) A comment used to store what the transaction is for. \n"
             "                                     This is not part of the transaction, just kept in your wallet.\n"
-            "6. \"comment-to\"        (string, optional) An optional comment to store the name of the person or organization \n"
+            "7. \"comment-to\"     (string, optional) An optional comment to store the name of the person or organization \n"
             "                                     to which you're sending the transaction. This is not part of the transaction, \n"
             "                                     it is just kept in your wallet.\n"
             "\nResult:\n"
-            "\"transactionid\"        (string) The transaction id.\n"
+            "\"transactionid\"     (string) The transaction id.\n"
             "\nExamples:\n"
             "\nSend 0.01 " + CURRENCY_UNIT + " from the default account to the address, must have at least 1 confirmation\n"
-            + HelpExampleCli("sendfrom", "\"\" \"XwnLY9Tf7Zsef8gMGL2fhWA9ZmMjt4KPwg\" 0.01") +
+            + HelpExampleCli("sendfrom", "\"\" \"DExeHtoRwqNu2SKwmUdJSbbw4T4HYpFe8N\" 0.01") +
             "\nSend 0.01 from the tabby account to the given address, funds must have at least 6 confirmations\n"
-            + HelpExampleCli("sendfrom", "\"tabby\" \"XwnLY9Tf7Zsef8gMGL2fhWA9ZmMjt4KPwg\" 0.01 6 \"donation\" \"seans outpost\"") +
+            + HelpExampleCli("sendfrom", "\"tabby\" \"DExeHtoRwqNu2SKwmUdJSbbw4T4HYpFe8N\" 0.01 6 false \"donation\" \"seans outpost\"") +
             "\nAs a json rpc call\n"
-            + HelpExampleRpc("sendfrom", "\"tabby\", \"XwnLY9Tf7Zsef8gMGL2fhWA9ZmMjt4KPwg\", 0.01, 6, \"donation\", \"seans outpost\"")
+            + HelpExampleRpc("sendfrom", "\"tabby\", \"DExeHtoRwqNu2SKwmUdJSbbw4T4HYpFe8N\", 0.01, 6, false, \"donation\", \"seans outpost\"")
         );
 
     LOCK2(cs_main, pwalletMain->cs_wallet);
@@ -989,18 +999,19 @@ UniValue sendfrom(const UniValue& params, bool fHelp)
     int nMinDepth = 1;
     if (params.size() > 3)
         nMinDepth = params[3].get_int();
+    bool fAddLockConf = (params.size() > 4 && params[4].get_bool());
 
     CWalletTx wtx;
     wtx.strFromAccount = strAccount;
-    if (params.size() > 4 && !params[4].isNull() && !params[4].get_str().empty())
-        wtx.mapValue["comment"] = params[4].get_str();
     if (params.size() > 5 && !params[5].isNull() && !params[5].get_str().empty())
-        wtx.mapValue["to"]      = params[5].get_str();
+        wtx.mapValue["comment"] = params[5].get_str();
+    if (params.size() > 6 && !params[6].isNull() && !params[6].get_str().empty())
+        wtx.mapValue["to"]      = params[6].get_str();
 
     EnsureWalletIsUnlocked();
 
     // Check funds
-    CAmount nBalance = GetAccountBalance(strAccount, nMinDepth, ISMINE_SPENDABLE);
+    CAmount nBalance = GetAccountBalance(strAccount, nMinDepth, ISMINE_SPENDABLE, fAddLockConf);
     if (nAmount > nBalance)
         throw JSONRPCError(RPC_WALLET_INSUFFICIENT_FUNDS, "Account has insufficient funds");
 
@@ -1014,22 +1025,23 @@ UniValue sendmany(const UniValue& params, bool fHelp)
 {
     if (!EnsureWalletIsAvailable(fHelp))
         return NullUniValue;
-    
-    if (fHelp || params.size() < 2 || params.size() > 7)
+
+    if (fHelp || params.size() < 2 || params.size() > 8)
         throw runtime_error(
-            "sendmany \"fromaccount\" {\"address\":amount,...} ( minconf \"comment\" [\"address\",...] subtractfeefromamount use_is use_ps )\n"
+            "sendmany \"fromaccount\" {\"address\":amount,...} ( minconf addlockconf \"comment\" [\"address\",...] subtractfeefromamount use_is use_ps )\n"
             "\nSend multiple times. Amounts are double-precision floating point numbers."
             + HelpRequiringPassphrase() + "\n"
             "\nArguments:\n"
-            "1. \"fromaccount\"         (string, required) DEPRECATED. The account to send the funds from. Should be \"\" for the default account\n"
-            "2. \"amounts\"             (string, required) A json object with addresses and amounts\n"
+            "1. \"fromaccount\"           (string, required) DEPRECATED. The account to send the funds from. Should be \"\" for the default account\n"
+            "2. \"amounts\"               (string, required) A json object with addresses and amounts\n"
             "    {\n"
-            "      \"address\":amount   (numeric or string) The neodash address is the key, the numeric amount (can be string) in " + CURRENCY_UNIT + " is the value\n"
+            "      \"address\":amount     (numeric or string) The neodash address is the key, the numeric amount (can be string) in " + CURRENCY_UNIT + " is the value\n"
             "      ,...\n"
             "    }\n"
             "3. minconf                 (numeric, optional, default=1) Only use the balance confirmed at least this many times.\n"
-            "4. \"comment\"             (string, optional) A comment\n"
-            "5. subtractfeefromamount   (string, optional) A json array with addresses.\n"
+            "4. addlockconf             (bool, optional, default=false) Whether to add " + std::to_string(nInstantSendDepth) + " confirmations to transactions locked via InstantSend.\n"
+            "5. \"comment\"               (string, optional) A comment\n"
+            "6. subtractfeefromamount   (string, optional) A json array with addresses.\n"
             "                           The fee will be equally deducted from the amount of each selected address.\n"
             "                           Those recipients will receive less neodashs than you enter in their corresponding amount field.\n"
             "                           If no addresses are specified here, the sender pays the fee.\n"
@@ -1037,36 +1049,40 @@ UniValue sendmany(const UniValue& params, bool fHelp)
             "      \"address\"            (string) Subtract fee from this address\n"
             "      ,...\n"
             "    ]\n"
-            "6. \"use_is\"      (bool, optional) Send this transaction as InstantSend (default: false)\n"
-            "7. \"use_ps\"      (bool, optional) Use anonymized funds only (default: false)\n"
+            "7. \"use_is\"                (bool, optional) Send this transaction as InstantSend (default: false)\n"
+            "8. \"use_ps\"                (bool, optional) Use anonymized funds only (default: false)\n"
             "\nResult:\n"
-            "\"transactionid\"          (string) The transaction id for the send. Only 1 transaction is created regardless of \n"
+            "\"transactionid\"            (string) The transaction id for the send. Only 1 transaction is created regardless of \n"
             "                                    the number of addresses.\n"
             "\nExamples:\n"
             "\nSend two amounts to two different addresses:\n"
-            + HelpExampleCli("sendmany", "\"tabby\" \"{\\\"XwnLY9Tf7Zsef8gMGL2fhWA9ZmMjt4KPwg\\\":0.01,\\\"XuQQkwA4FYkq2XERzMY2CiAZhJTEDAbtcg\\\":0.02}\"") +
+            + HelpExampleCli("sendmany", "\"tabby\" \"{\\\"DExeHtoRwqNu2SKwmUdJSbbw4T4HYpFe8N\\\":0.01,\\\"XuQQkwA4FYkq2XERzMY2CiAZhJTEDAbtcg\\\":0.02}\"") +
             "\nSend two amounts to two different addresses setting the confirmation and comment:\n"
-            + HelpExampleCli("sendmany", "\"tabby\" \"{\\\"XwnLY9Tf7Zsef8gMGL2fhWA9ZmMjt4KPwg\\\":0.01,\\\"XuQQkwA4FYkq2XERzMY2CiAZhJTEDAbtcg\\\":0.02}\" 6 \"testing\"") +
+            + HelpExampleCli("sendmany", "\"tabby\" \"{\\\"DExeHtoRwqNu2SKwmUdJSbbw4T4HYpFe8N\\\":0.01,\\\"XuQQkwA4FYkq2XERzMY2CiAZhJTEDAbtcg\\\":0.02}\" 6 false \"testing\"") +
             "\nAs a json rpc call\n"
-            + HelpExampleRpc("sendmany", "\"tabby\", \"{\\\"XwnLY9Tf7Zsef8gMGL2fhWA9ZmMjt4KPwg\\\":0.01,\\\"XuQQkwA4FYkq2XERzMY2CiAZhJTEDAbtcg\\\":0.02}\", 6, \"testing\"")
+            + HelpExampleRpc("sendmany", "\"tabby\", \"{\\\"DExeHtoRwqNu2SKwmUdJSbbw4T4HYpFe8N\\\":0.01,\\\"XuQQkwA4FYkq2XERzMY2CiAZhJTEDAbtcg\\\":0.02}\", 6, false, \"testing\"")
         );
 
     LOCK2(cs_main, pwalletMain->cs_wallet);
+
+    if (pwalletMain->GetBroadcastTransactions() && !g_connman)
+        throw JSONRPCError(RPC_CLIENT_P2P_DISABLED, "Error: Peer-to-peer functionality missing or disabled");
 
     string strAccount = AccountFromValue(params[0]);
     UniValue sendTo = params[1].get_obj();
     int nMinDepth = 1;
     if (params.size() > 2)
         nMinDepth = params[2].get_int();
+    bool fAddLockConf = (params.size() > 3 && params[3].get_bool());
 
     CWalletTx wtx;
     wtx.strFromAccount = strAccount;
-    if (params.size() > 3 && !params[3].isNull() && !params[3].get_str().empty())
-        wtx.mapValue["comment"] = params[3].get_str();
+    if (params.size() > 4 && !params[4].isNull() && !params[4].get_str().empty())
+        wtx.mapValue["comment"] = params[4].get_str();
 
     UniValue subtractFeeFromAmount(UniValue::VARR);
-    if (params.size() > 4)
-        subtractFeeFromAmount = params[4].get_array();
+    if (params.size() > 5)
+        subtractFeeFromAmount = params[5].get_array();
 
     set<CBitcoinAddress> setAddress;
     vector<CRecipient> vecSend;
@@ -1103,7 +1119,7 @@ UniValue sendmany(const UniValue& params, bool fHelp)
     EnsureWalletIsUnlocked();
 
     // Check funds
-    CAmount nBalance = GetAccountBalance(strAccount, nMinDepth, ISMINE_SPENDABLE);
+    CAmount nBalance = GetAccountBalance(strAccount, nMinDepth, ISMINE_SPENDABLE, fAddLockConf);
     if (totalAmount > nBalance)
         throw JSONRPCError(RPC_WALLET_INSUFFICIENT_FUNDS, "Account has insufficient funds");
 
@@ -1112,31 +1128,31 @@ UniValue sendmany(const UniValue& params, bool fHelp)
     CAmount nFeeRequired = 0;
     int nChangePosRet = -1;
     string strFailReason;
-    bool fUseIX = false;
-    bool fUseDS = false;
-    if (params.size() > 5)
-        fUseIX = params[5].get_bool();
+    bool fUseInstantSend = false;
+    bool fUsePrivateSend = false;
     if (params.size() > 6)
-        fUseDS = params[6].get_bool();
+        fUseInstantSend = params[6].get_bool();
+    if (params.size() > 7)
+        fUsePrivateSend = params[7].get_bool();
 
     bool fCreated = pwalletMain->CreateTransaction(vecSend, wtx, keyChange, nFeeRequired, nChangePosRet, strFailReason,
-                                                   NULL, true, fUseDS ? ONLY_DENOMINATED : ALL_COINS, fUseIX);
+                                                   NULL, true, fUsePrivateSend ? ONLY_DENOMINATED : ALL_COINS, fUseInstantSend);
     if (!fCreated)
         throw JSONRPCError(RPC_WALLET_INSUFFICIENT_FUNDS, strFailReason);
-    if (!pwalletMain->CommitTransaction(wtx, keyChange, fUseIX ? NetMsgType::IX : NetMsgType::TX))
+    if (!pwalletMain->CommitTransaction(wtx, keyChange, g_connman.get(), fUseInstantSend ? NetMsgType::TXLOCKREQUEST : NetMsgType::TX))
         throw JSONRPCError(RPC_WALLET_ERROR, "Transaction commit failed");
 
     return wtx.GetHash().GetHex();
 }
 
-// Defined in rpcmisc.cpp
+// Defined in rpc/misc.cpp
 extern CScript _createmultisig_redeemScript(const UniValue& params);
 
 UniValue addmultisigaddress(const UniValue& params, bool fHelp)
 {
     if (!EnsureWalletIsAvailable(fHelp))
         return NullUniValue;
-    
+
     if (fHelp || params.size() < 2 || params.size() > 3)
     {
         string msg = "addmultisigaddress nrequired [\"key\",...] ( \"account\" )\n"
@@ -1185,14 +1201,12 @@ struct tallyitem
 {
     CAmount nAmount;
     int nConf;
-    int nBCConf;
     vector<uint256> txids;
     bool fIsWatchonly;
     tallyitem()
     {
         nAmount = 0;
         nConf = std::numeric_limits<int>::max();
-        nBCConf = std::numeric_limits<int>::max();
         fIsWatchonly = false;
     }
 };
@@ -1203,15 +1217,16 @@ UniValue ListReceived(const UniValue& params, bool fByAccounts)
     int nMinDepth = 1;
     if (params.size() > 0)
         nMinDepth = params[0].get_int();
+    bool fAddLockConf = (params.size() > 1 && params[1].get_bool());
 
     // Whether to include empty accounts
     bool fIncludeEmpty = false;
-    if (params.size() > 1)
-        fIncludeEmpty = params[1].get_bool();
+    if (params.size() > 2)
+        fIncludeEmpty = params[2].get_bool();
 
     isminefilter filter = ISMINE_SPENDABLE;
-    if(params.size() > 2)
-        if(params[2].get_bool())
+    if(params.size() > 3)
+        if(params[3].get_bool())
             filter = filter | ISMINE_WATCH_ONLY;
 
     // Tally
@@ -1223,8 +1238,7 @@ UniValue ListReceived(const UniValue& params, bool fByAccounts)
         if (wtx.IsCoinBase() || !CheckFinalTx(wtx))
             continue;
 
-        int nDepth = wtx.GetDepthInMainChain();
-        int nBCDepth = wtx.GetDepthInMainChain(false);
+        int nDepth = wtx.GetDepthInMainChain(fAddLockConf);
         if (nDepth < nMinDepth)
             continue;
 
@@ -1241,7 +1255,6 @@ UniValue ListReceived(const UniValue& params, bool fByAccounts)
             tallyitem& item = mapTally[address];
             item.nAmount += txout.nValue;
             item.nConf = min(item.nConf, nDepth);
-            item.nBCConf = min(item.nBCConf, nBCDepth);
             item.txids.push_back(wtx.GetHash());
             if (mine & ISMINE_WATCH_ONLY)
                 item.fIsWatchonly = true;
@@ -1259,15 +1272,17 @@ UniValue ListReceived(const UniValue& params, bool fByAccounts)
         if (it == mapTally.end() && !fIncludeEmpty)
             continue;
 
+        isminefilter mine = IsMine(*pwalletMain, address.Get());
+        if(!(mine & filter))
+            continue;
+
         CAmount nAmount = 0;
         int nConf = std::numeric_limits<int>::max();
-        int nBCConf = std::numeric_limits<int>::max();
         bool fIsWatchonly = false;
         if (it != mapTally.end())
         {
             nAmount = (*it).second.nAmount;
             nConf = (*it).second.nConf;
-            nBCConf = (*it).second.nBCConf;
             fIsWatchonly = (*it).second.fIsWatchonly;
         }
 
@@ -1276,7 +1291,6 @@ UniValue ListReceived(const UniValue& params, bool fByAccounts)
             tallyitem& item = mapAccountTally[strAccount];
             item.nAmount += nAmount;
             item.nConf = min(item.nConf, nConf);
-            item.nBCConf = min(item.nBCConf, nBCConf);
             item.fIsWatchonly = fIsWatchonly;
         }
         else
@@ -1288,7 +1302,6 @@ UniValue ListReceived(const UniValue& params, bool fByAccounts)
             obj.push_back(Pair("account",       strAccount));
             obj.push_back(Pair("amount",        ValueFromAmount(nAmount)));
             obj.push_back(Pair("confirmations", (nConf == std::numeric_limits<int>::max() ? 0 : nConf)));
-            obj.push_back(Pair("bcconfirmations", (nBCConf == std::numeric_limits<int>::max() ? 0 : nBCConf)));
             if (!fByAccounts)
                 obj.push_back(Pair("label", strAccount));
             UniValue transactions(UniValue::VARR);
@@ -1310,14 +1323,12 @@ UniValue ListReceived(const UniValue& params, bool fByAccounts)
         {
             CAmount nAmount = (*it).second.nAmount;
             int nConf = (*it).second.nConf;
-            int nBCConf = (*it).second.nBCConf;
             UniValue obj(UniValue::VOBJ);
             if((*it).second.fIsWatchonly)
                 obj.push_back(Pair("involvesWatchonly", true));
             obj.push_back(Pair("account",       (*it).first));
             obj.push_back(Pair("amount",        ValueFromAmount(nAmount)));
             obj.push_back(Pair("confirmations", (nConf == std::numeric_limits<int>::max() ? 0 : nConf)));
-            obj.push_back(Pair("bcconfirmations", (nBCConf == std::numeric_limits<int>::max() ? 0 : nBCConf)));
             ret.push_back(obj);
         }
     }
@@ -1329,34 +1340,36 @@ UniValue listreceivedbyaddress(const UniValue& params, bool fHelp)
 {
     if (!EnsureWalletIsAvailable(fHelp))
         return NullUniValue;
-    
-    if (fHelp || params.size() > 3)
+
+    if (fHelp || params.size() > 4)
         throw runtime_error(
-            "listreceivedbyaddress ( minconf includeempty includeWatchonly)\n"
+            "listreceivedbyaddress ( minconf addlockconf includeempty includeWatchonly)\n"
             "\nList balances by receiving address.\n"
             "\nArguments:\n"
-            "1. minconf       (numeric, optional, default=1) The minimum number of confirmations before payments are included.\n"
-            "2. includeempty  (numeric, optional, default=false) Whether to include addresses that haven't received any payments.\n"
-            "3. includeWatchonly (bool, optional, default=false) Whether to include watchonly addresses (see 'importaddress').\n"
+            "1. minconf          (numeric, optional, default=1) The minimum number of confirmations before payments are included.\n"
+            "2. addlockconf      (bool, optional, default=false) Whether to add " + std::to_string(nInstantSendDepth) + " confirmations to transactions locked via InstantSend.\n"
+            "3. includeempty     (bool, optional, default=false) Whether to include addresses that haven't received any payments.\n"
+            "4. includeWatchonly (bool, optional, default=false) Whether to include watchonly addresses (see 'importaddress').\n"
 
             "\nResult:\n"
             "[\n"
             "  {\n"
             "    \"involvesWatchonly\" : true,        (bool) Only returned if imported addresses were involved in transaction\n"
-            "    \"address\" : \"receivingaddress\",  (string) The receiving address\n"
-            "    \"account\" : \"accountname\",       (string) DEPRECATED. The account of the receiving address. The default account is \"\".\n"
+            "    \"address\" : \"receivingaddress\",    (string) The receiving address\n"
+            "    \"account\" : \"accountname\",         (string) DEPRECATED. The account of the receiving address. The default account is \"\".\n"
             "    \"amount\" : x.xxx,                  (numeric) The total amount in " + CURRENCY_UNIT + " received by the address\n"
-            "    \"confirmations\" : n,               (numeric) The number of confirmations of the most recent transaction included\n"
-            "    \"bcconfirmations\" : n              (numeric) The number of blockchain confirmations of the most recent transaction included\n"
-            "    \"label\" : \"label\"                (string) A comment for the address/transaction, if any\n"
+            "    \"confirmations\" : n                (numeric) The number of confirmations of the most recent transaction included.\n"
+            "                                                 If 'addlockconf' is true, the minimum number of confirmations is calculated\n"
+            "                                                 including additional " + std::to_string(nInstantSendDepth) + " confirmations for transactions locked via InstantSend\n"
+            "    \"label\" : \"label\"                  (string) A comment for the address/transaction, if any\n"
             "  }\n"
             "  ,...\n"
             "]\n"
 
             "\nExamples:\n"
             + HelpExampleCli("listreceivedbyaddress", "")
-            + HelpExampleCli("listreceivedbyaddress", "6 true")
-            + HelpExampleRpc("listreceivedbyaddress", "6, true, true")
+            + HelpExampleCli("listreceivedbyaddress", "6 false true")
+            + HelpExampleRpc("listreceivedbyaddress", "6, false, true, true")
         );
 
     LOCK2(cs_main, pwalletMain->cs_wallet);
@@ -1368,33 +1381,33 @@ UniValue listreceivedbyaccount(const UniValue& params, bool fHelp)
 {
     if (!EnsureWalletIsAvailable(fHelp))
         return NullUniValue;
-    
-    if (fHelp || params.size() > 3)
+
+    if (fHelp || params.size() > 4)
         throw runtime_error(
-            "listreceivedbyaccount ( minconf includeempty includeWatchonly)\n"
+            "listreceivedbyaccount ( minconf addlockconf includeempty includeWatchonly)\n"
             "\nDEPRECATED. List balances by account.\n"
             "\nArguments:\n"
-            "1. minconf      (numeric, optional, default=1) The minimum number of confirmations before payments are included.\n"
-            "2. includeempty (boolean, optional, default=false) Whether to include accounts that haven't received any payments.\n"
-            "3. includeWatchonly (bool, optional, default=false) Whether to include watchonly addresses (see 'importaddress').\n"
+            "1. minconf           (numeric, optional, default=1) The minimum number of confirmations before payments are included.\n"
+            "2. addlockconf      (bool, optional, default=false) Whether to add " + std::to_string(nInstantSendDepth) + " confirmations to transactions locked via InstantSend.\n"
+            "3. includeempty      (bool, optional, default=false) Whether to include accounts that haven't received any payments.\n"
+            "4. includeWatchonly  (bool, optional, default=false) Whether to include watchonly addresses (see 'importaddress').\n"
 
             "\nResult:\n"
             "[\n"
             "  {\n"
             "    \"involvesWatchonly\" : true,   (bool) Only returned if imported addresses were involved in transaction\n"
-            "    \"account\" : \"accountname\",  (string) The account name of the receiving account\n"
+            "    \"account\" : \"accountname\",    (string) The account name of the receiving account\n"
             "    \"amount\" : x.xxx,             (numeric) The total amount received by addresses with this account\n"
-            "    \"confirmations\" : n           (numeric) The number of confirmations of the most recent transaction included\n"
-            "    \"bcconfirmations\" : n         (numeric) The number of blockchain confirmations of the most recent transaction included\n"
-            "    \"label\" : \"label\"           (string) A comment for the address/transaction, if any\n"
+            "    \"confirmations\" : n           (numeric) The number of blockchain confirmations of the most recent transaction included\n"
+            "    \"label\" : \"label\"             (string) A comment for the address/transaction, if any\n"
             "  }\n"
             "  ,...\n"
             "]\n"
 
             "\nExamples:\n"
             + HelpExampleCli("listreceivedbyaccount", "")
-            + HelpExampleCli("listreceivedbyaccount", "6 true")
-            + HelpExampleRpc("listreceivedbyaccount", "6, true, true")
+            + HelpExampleCli("listreceivedbyaccount", "6 false true")
+            + HelpExampleRpc("listreceivedbyaccount", "6, false, true, true")
         );
 
     LOCK2(cs_main, pwalletMain->cs_wallet);
@@ -1432,7 +1445,7 @@ void ListTransactions(const CWalletTx& wtx, const string& strAccount, int nMinDe
             entry.push_back(Pair("account", strSentAccount));
             MaybePushAddress(entry, s.destination);
             std::map<std::string, std::string>::const_iterator it = wtx.mapValue.find("DS");
-            entry.push_back(Pair("category", (it != wtx.mapValue.end() && it->second == "1") ? "darksent" : "send"));
+            entry.push_back(Pair("category", (it != wtx.mapValue.end() && it->second == "1") ? "privatesend" : "send"));
             entry.push_back(Pair("amount", ValueFromAmount(-s.amount)));
             if (pwalletMain->mapAddressBook.count(s.destination))
                 entry.push_back(Pair("label", pwalletMain->mapAddressBook[s.destination].name));
@@ -1506,22 +1519,22 @@ UniValue listtransactions(const UniValue& params, bool fHelp)
 {
     if (!EnsureWalletIsAvailable(fHelp))
         return NullUniValue;
-    
+
     if (fHelp || params.size() > 4)
         throw runtime_error(
-            "listtransactions ( \"account\" count from includeWatchonly)\n"
+            "listtransactions    ( \"account\" count from includeWatchonly)\n"
             "\nReturns up to 'count' most recent transactions skipping the first 'from' transactions for account 'account'.\n"
             "\nArguments:\n"
-            "1. \"account\"    (string, optional) DEPRECATED. The account name. Should be \"*\".\n"
-            "2. count          (numeric, optional, default=10) The number of transactions to return\n"
-            "3. from           (numeric, optional, default=0) The number of transactions to skip\n"
+            "1. \"account\"        (string, optional) DEPRECATED. The account name. Should be \"*\".\n"
+            "2. count            (numeric, optional, default=10) The number of transactions to return\n"
+            "3. from             (numeric, optional, default=0) The number of transactions to skip\n"
             "4. includeWatchonly (bool, optional, default=false) Include transactions to watchonly addresses (see 'importaddress')\n"
             "\nResult:\n"
             "[\n"
             "  {\n"
-            "    \"account\":\"accountname\",       (string) DEPRECATED. The account name associated with the transaction. \n"
+            "    \"account\":\"accountname\",  (string) DEPRECATED. The account name associated with the transaction. \n"
             "                                                It will be \"\" for the default account.\n"
-            "    \"address\":\"neodashaddress\",    (string) The neodash address of the transaction. Not present for \n"
+            "    \"address\":\"neodashaddress\",  (string) The neodash address of the transaction. Not present for \n"
             "                                                move transactions (category = move).\n"
             "    \"category\":\"send|receive|move\", (string) The transaction category. 'move' is a local (off blockchain)\n"
             "                                                transaction between accounts, and not associated with an address,\n"
@@ -1533,24 +1546,22 @@ UniValue listtransactions(const UniValue& params, bool fHelp)
             "    \"vout\": n,                (numeric) the vout value\n"
             "    \"fee\": x.xxx,             (numeric) The amount of the fee in " + CURRENCY_UNIT + ". This is negative and only available for the \n"
             "                                         'send' category of transactions.\n"
-            "    \"confirmations\": n,       (numeric) The number of confirmations for the transaction. Available for 'send' and \n"
-            "                                         'receive' category of transactions. Negative confirmations indicate the\n"
-            "                                         transation conflicts with the block chain\n"
-            "    \"bcconfirmations\": n,     (numeric) The number of blockchain confirmations for the transaction. Available for 'send' and \n"
+            "    \"instantlock\" : true|false, (bool) Current transaction lock state. Available for 'send' and 'receive' category of transactions.\n"
+            "    \"confirmations\": n,       (numeric) The number of blockchain confirmations for the transaction. Available for 'send' and \n"
             "                                         'receive' category of transactions. Negative confirmations indicate the\n"
             "                                         transation conflicts with the block chain\n"
             "    \"trusted\": xxx            (bool) Whether we consider the outputs of this unconfirmed transaction safe to spend.\n"
             "    \"blockhash\": \"hashvalue\", (string) The block hash containing the transaction. Available for 'send' and 'receive'\n"
             "                                          category of transactions.\n"
-            "    \"blockindex\": n,          (numeric) The block index containing the transaction. Available for 'send' and 'receive'\n"
+            "    \"blockindex\": n,          (numeric) The index of the transaction in the block that includes it. Available for 'send' and 'receive'\n"
             "                                          category of transactions.\n"
             "    \"blocktime\": xxx,         (numeric) The block time in seconds since epoch (1 Jan 1970 GMT).\n"
-            "    \"txid\": \"transactionid\", (string) The transaction id. Available for 'send' and 'receive' category of transactions.\n"
+            "    \"txid\": \"transactionid\",  (string) The transaction id. Available for 'send' and 'receive' category of transactions.\n"
             "    \"time\": xxx,              (numeric) The transaction time in seconds since epoch (midnight Jan 1 1970 GMT).\n"
             "    \"timereceived\": xxx,      (numeric) The time received in seconds since epoch (midnight Jan 1 1970 GMT). Available \n"
             "                                          for 'send' and 'receive' category of transactions.\n"
-            "    \"comment\": \"...\",       (string) If a comment is associated with the transaction.\n"
-            "    \"label\": \"label\"        (string) A comment for the address/transaction, if any\n"
+            "    \"comment\": \"...\",         (string) If a comment is associated with the transaction.\n"
+            "    \"label\": \"label\"          (string) A comment for the address/transaction, if any\n"
             "    \"otheraccount\": \"accountname\",  (string) For the 'move' category of transactions, the account the funds came \n"
             "                                          from (for receiving funds, positive amounts), or went to (for sending funds,\n"
             "                                          negative amounts).\n"
@@ -1635,16 +1646,17 @@ UniValue listaccounts(const UniValue& params, bool fHelp)
 {
     if (!EnsureWalletIsAvailable(fHelp))
         return NullUniValue;
-    
-    if (fHelp || params.size() > 2)
+
+    if (fHelp || params.size() > 3)
         throw runtime_error(
-            "listaccounts ( minconf includeWatchonly)\n"
+            "listaccounts ( minconf addlockconf includeWatchonly)\n"
             "\nDEPRECATED. Returns Object that has account names as keys, account balances as values.\n"
             "\nArguments:\n"
-            "1. minconf          (numeric, optional, default=1) Only include transactions with at least this many confirmations\n"
-            "2. includeWatchonly (bool, optional, default=false) Include balances in watchonly addresses (see 'importaddress')\n"
+            "1. minconf           (numeric, optional, default=1) Only include transactions with at least this many confirmations\n"
+            "2. addlockconf       (bool, optional, default=false) Whether to add " + std::to_string(nInstantSendDepth) + " confirmations to transactions locked via InstantSend.\n"
+            "3. includeWatchonly  (bool, optional, default=false) Include balances in watchonly addresses (see 'importaddress')\n"
             "\nResult:\n"
-            "{                      (json object where keys are account names, and values are numeric balances\n"
+            "{                    (json object where keys are account names, and values are numeric balances\n"
             "  \"account\": x.xxx,  (numeric) The property name is the account name, and the value is the total balance for the account.\n"
             "  ...\n"
             "}\n"
@@ -1664,9 +1676,10 @@ UniValue listaccounts(const UniValue& params, bool fHelp)
     int nMinDepth = 1;
     if (params.size() > 0)
         nMinDepth = params[0].get_int();
+    bool fAddLockConf = (params.size() > 1 && params[1].get_bool());
     isminefilter includeWatchonly = ISMINE_SPENDABLE;
-    if(params.size() > 1)
-        if(params[1].get_bool())
+    if(params.size() > 2)
+        if(params[2].get_bool())
             includeWatchonly = includeWatchonly | ISMINE_WATCH_ONLY;
 
     map<string, CAmount> mapAccountBalances;
@@ -1682,7 +1695,7 @@ UniValue listaccounts(const UniValue& params, bool fHelp)
         string strSentAccount;
         list<COutputEntry> listReceived;
         list<COutputEntry> listSent;
-        int nDepth = wtx.GetDepthInMainChain();
+        int nDepth = wtx.GetDepthInMainChain(fAddLockConf);
         if (wtx.GetBlocksToMaturity() > 0 || nDepth < 0)
             continue;
         wtx.GetAmounts(listReceived, listSent, nFee, strSentAccount, includeWatchonly);
@@ -1714,38 +1727,38 @@ UniValue listsinceblock(const UniValue& params, bool fHelp)
 {
     if (!EnsureWalletIsAvailable(fHelp))
         return NullUniValue;
-    
+
     if (fHelp)
         throw runtime_error(
             "listsinceblock ( \"blockhash\" target-confirmations includeWatchonly)\n"
             "\nGet all transactions in blocks since block [blockhash], or all transactions if omitted\n"
             "\nArguments:\n"
-            "1. \"blockhash\"   (string, optional) The block hash to list transactions since\n"
+            "1. \"blockhash\"              (string, optional) The block hash to list transactions since\n"
             "2. target-confirmations:    (numeric, optional) The confirmations required, must be 1 or more\n"
             "3. includeWatchonly:        (bool, optional, default=false) Include transactions to watchonly addresses (see 'importaddress')"
             "\nResult:\n"
             "{\n"
             "  \"transactions\": [\n"
-            "    \"account\":\"accountname\",       (string) DEPRECATED. The account name associated with the transaction. Will be \"\" for the default account.\n"
-            "    \"address\":\"neodashaddress\",    (string) The neodash address of the transaction. Not present for move transactions (category = move).\n"
-            "    \"category\":\"send|receive\",     (string) The transaction category. 'send' has negative amounts, 'receive' has positive amounts.\n"
+            "    \"account\":\"accountname\",  (string) DEPRECATED. The account name associated with the transaction. Will be \"\" for the default account.\n"
+            "    \"address\":\"neodashaddress\",  (string) The neodash address of the transaction. Not present for move transactions (category = move).\n"
+            "    \"category\":\"send|receive\",  (string) The transaction category. 'send' has negative amounts, 'receive' has positive amounts.\n"
             "    \"amount\": x.xxx,          (numeric) The amount in " + CURRENCY_UNIT + ". This is negative for the 'send' category, and for the 'move' category for moves \n"
             "                                          outbound. It is positive for the 'receive' category, and for the 'move' category for inbound funds.\n"
             "    \"vout\" : n,               (numeric) the vout value\n"
             "    \"fee\": x.xxx,             (numeric) The amount of the fee in " + CURRENCY_UNIT + ". This is negative and only available for the 'send' category of transactions.\n"
-            "    \"confirmations\": n,       (numeric) The number of confirmations for the transaction. Available for 'send' and 'receive' category of transactions.\n"
-            "    \"bcconfirmations\" : n,    (numeric) The number of blockchain confirmations for the transaction. Available for 'send' and 'receive' category of transactions.\n"
-            "    \"blockhash\": \"hashvalue\",     (string) The block hash containing the transaction. Available for 'send' and 'receive' category of transactions.\n"
-            "    \"blockindex\": n,          (numeric) The block index containing the transaction. Available for 'send' and 'receive' category of transactions.\n"
+            "    \"instantlock\" : true|false, (bool) Current transaction lock state. Available for 'send' and 'receive' category of transactions.\n"
+            "    \"confirmations\" : n,      (numeric) The number of blockchain confirmations for the transaction. Available for 'send' and 'receive' category of transactions.\n"
+            "    \"blockhash\": \"hashvalue\", (string) The block hash containing the transaction. Available for 'send' and 'receive' category of transactions.\n"
+            "    \"blockindex\": n,          (numeric) The index of the transaction in the block that includes it. Available for 'send' and 'receive' category of transactions.\n"
             "    \"blocktime\": xxx,         (numeric) The block time in seconds since epoch (1 Jan 1970 GMT).\n"
             "    \"txid\": \"transactionid\",  (string) The transaction id. Available for 'send' and 'receive' category of transactions.\n"
             "    \"time\": xxx,              (numeric) The transaction time in seconds since epoch (Jan 1 1970 GMT).\n"
             "    \"timereceived\": xxx,      (numeric) The time received in seconds since epoch (Jan 1 1970 GMT). Available for 'send' and 'receive' category of transactions.\n"
-            "    \"comment\": \"...\",       (string) If a comment is associated with the transaction.\n"
-            "    \"label\" : \"label\"       (string) A comment for the address/transaction, if any\n"
-            "    \"to\": \"...\",            (string) If a comment to is associated with the transaction.\n"
+            "    \"comment\": \"...\",         (string) If a comment is associated with the transaction.\n"
+            "    \"label\" : \"label\"         (string) A comment for the address/transaction, if any\n"
+            "    \"to\": \"...\",              (string) If a comment to is associated with the transaction.\n"
              "  ],\n"
-            "  \"lastblock\": \"lastblockhash\"     (string) The hash of the last block\n"
+            "  \"lastblock\": \"lastblockhash\"  (string) The hash of the last block\n"
             "}\n"
             "\nExamples:\n"
             + HelpExampleCli("listsinceblock", "")
@@ -1767,6 +1780,8 @@ UniValue listsinceblock(const UniValue& params, bool fHelp)
         BlockMap::iterator it = mapBlockIndex.find(blockId);
         if (it != mapBlockIndex.end())
             pindex = it->second;
+        else
+            throw JSONRPCError(RPC_INVALID_PARAMETER, "Invalid blockhash");
     }
 
     if (params.size() > 1)
@@ -1807,21 +1822,21 @@ UniValue gettransaction(const UniValue& params, bool fHelp)
 {
     if (!EnsureWalletIsAvailable(fHelp))
         return NullUniValue;
-    
+
     if (fHelp || params.size() < 1 || params.size() > 2)
         throw runtime_error(
             "gettransaction \"txid\" ( includeWatchonly )\n"
             "\nGet detailed information about in-wallet transaction <txid>\n"
             "\nArguments:\n"
-            "1. \"txid\"    (string, required) The transaction id\n"
+            "1. \"txid\"                (string, required) The transaction id\n"
             "2. \"includeWatchonly\"    (bool, optional, default=false) Whether to include watchonly addresses in balance calculation and details[]\n"
             "\nResult:\n"
             "{\n"
             "  \"amount\" : x.xxx,        (numeric) The transaction amount in " + CURRENCY_UNIT + "\n"
-            "  \"confirmations\" : n,     (numeric) The number of confirmations\n"
-            "  \"bcconfirmations\" : n,   (numeric) The number of blockchain confirmations\n"
-            "  \"blockhash\" : \"hash\",  (string) The block hash\n"
-            "  \"blockindex\" : xx,       (numeric) The block index\n"
+            "  \"instantlock\" : true|false, (bool) Current transaction lock state\n"
+            "  \"confirmations\" : n,     (numeric) The number of blockchain confirmations\n"
+            "  \"blockhash\" : \"hash\",    (string) The block hash\n"
+            "  \"blockindex\" : xx,       (numeric) The index of the transaction in the block that includes it\n"
             "  \"blocktime\" : ttt,       (numeric) The time in seconds since epoch (1 Jan 1970 GMT)\n"
             "  \"txid\" : \"transactionid\",   (string) The transaction id.\n"
             "  \"time\" : ttt,            (numeric) The transaction time in seconds since epoch (1 Jan 1970 GMT)\n"
@@ -1830,16 +1845,16 @@ UniValue gettransaction(const UniValue& params, bool fHelp)
             "                                                   may be unknown for unconfirmed transactions not in the mempool\n"
             "  \"details\" : [\n"
             "    {\n"
-            "      \"account\" : \"accountname\",  (string) DEPRECATED. The account name involved in the transaction, can be \"\" for the default account.\n"
-            "      \"address\" : \"neodashaddress\",   (string) The neodash address involved in the transaction\n"
+            "      \"account\" : \"accountname\",      (string) DEPRECATED. The account name involved in the transaction, can be \"\" for the default account.\n"
+            "      \"address\" : \"neodashaddress\",      (string) The neodash address involved in the transaction\n"
             "      \"category\" : \"send|receive\",    (string) The category, either 'send' or 'receive'\n"
-            "      \"amount\" : x.xxx,                 (numeric) The amount in " + CURRENCY_UNIT + "\n"
+            "      \"amount\" : x.xxx,               (numeric) The amount in " + CURRENCY_UNIT + "\n"
             "      \"label\" : \"label\",              (string) A comment for the address/transaction, if any\n"
-            "      \"vout\" : n,                       (numeric) the vout value\n"
+            "      \"vout\" : n,                     (numeric) the vout value\n"
             "    }\n"
             "    ,...\n"
             "  ],\n"
-            "  \"hex\" : \"data\"         (string) Raw data for transaction\n"
+            "  \"hex\" : \"data\"                      (string) Raw data for transaction\n"
             "}\n"
 
             "\nExamples:\n"
@@ -1923,7 +1938,7 @@ UniValue backupwallet(const UniValue& params, bool fHelp)
 {
     if (!EnsureWalletIsAvailable(fHelp))
         return NullUniValue;
-    
+
     if (fHelp || params.size() != 1)
         throw runtime_error(
             "backupwallet \"destination\"\n"
@@ -1949,7 +1964,7 @@ UniValue keypoolrefill(const UniValue& params, bool fHelp)
 {
     if (!EnsureWalletIsAvailable(fHelp))
         return NullUniValue;
-    
+
     if (fHelp || params.size() > 1)
         throw runtime_error(
             "keypoolrefill ( newsize )\n"
@@ -1975,7 +1990,7 @@ UniValue keypoolrefill(const UniValue& params, bool fHelp)
     EnsureWalletIsUnlocked();
     pwalletMain->TopUpKeyPool(kpSize);
 
-    if (pwalletMain->GetKeyPoolSize() < kpSize)
+    if (pwalletMain->GetKeyPoolSize() < (pwalletMain->IsHDEnabled() ? kpSize * 2 : kpSize))
         throw JSONRPCError(RPC_WALLET_ERROR, "Error refreshing keypool.");
 
     return NullUniValue;
@@ -1993,16 +2008,16 @@ UniValue walletpassphrase(const UniValue& params, bool fHelp)
 {
     if (!EnsureWalletIsAvailable(fHelp))
         return NullUniValue;
-    
+
     if (pwalletMain->IsCrypted() && (fHelp || params.size() < 2 || params.size() > 3))
         throw runtime_error(
-            "walletpassphrase \"passphrase\" timeout ( anonymizeonly )\n"
+            "walletpassphrase \"passphrase\" timeout ( mixingonly )\n"
             "\nStores the wallet decryption key in memory for 'timeout' seconds.\n"
             "This is needed prior to performing transactions related to private keys such as sending neodashs\n"
             "\nArguments:\n"
-            "1. \"passphrase\"     (string, required) The wallet passphrase\n"
-            "2. timeout            (numeric, required) The time to keep the decryption key in seconds.\n"
-            "3. anonymizeonly      (boolean, optional, default=flase) If is true sending functions are disabled."
+            "1. \"passphrase\"        (string, required) The wallet passphrase\n"
+            "2. timeout             (numeric, required) The time to keep the decryption key in seconds.\n"
+            "3. mixingonly          (boolean, optional, default=false) If is true sending functions are disabled."
             "\nNote:\n"
             "Issuing the walletpassphrase command while the wallet is already unlocked will set a new unlock\n"
             "time that overrides the old one.\n"
@@ -2031,19 +2046,23 @@ UniValue walletpassphrase(const UniValue& params, bool fHelp)
     // Alternately, find a way to make params[0] mlock()'d to begin with.
     strWalletPass = params[0].get_str().c_str();
 
-    bool anonymizeOnly = false;
-    if (params.size() == 3)
-        anonymizeOnly = params[2].get_bool();
+    int64_t nSleepTime = params[1].get_int64();
 
-    if (!pwalletMain->IsLocked() && pwalletMain->fWalletUnlockAnonymizeOnly && anonymizeOnly)
-        throw JSONRPCError(RPC_WALLET_ALREADY_UNLOCKED, "Error: Wallet is already unlocked.");
+    bool fForMixingOnly = false;
+    if (params.size() >= 3)
+        fForMixingOnly = params[2].get_bool();
 
-    if (!pwalletMain->Unlock(strWalletPass, anonymizeOnly))
+    if (fForMixingOnly && !pwalletMain->IsLocked(true) && pwalletMain->IsLocked())
+        throw JSONRPCError(RPC_WALLET_ALREADY_UNLOCKED, "Error: Wallet is already unlocked for mixing only.");
+
+    if (!pwalletMain->IsLocked())
+        throw JSONRPCError(RPC_WALLET_ALREADY_UNLOCKED, "Error: Wallet is already fully unlocked.");
+
+    if (!pwalletMain->Unlock(strWalletPass, fForMixingOnly))
         throw JSONRPCError(RPC_WALLET_PASSPHRASE_INCORRECT, "Error: The wallet passphrase entered was incorrect.");
 
     pwalletMain->TopUpKeyPool();
 
-    int64_t nSleepTime = params[1].get_int64();
     LOCK(cs_nWalletUnlockTime);
     nWalletUnlockTime = GetTime() + nSleepTime;
     RPCRunLater("lockwallet", boost::bind(LockWallet, pwalletMain), nSleepTime);
@@ -2056,7 +2075,7 @@ UniValue walletpassphrasechange(const UniValue& params, bool fHelp)
 {
     if (!EnsureWalletIsAvailable(fHelp))
         return NullUniValue;
-    
+
     if (pwalletMain->IsCrypted() && (fHelp || params.size() != 2))
         throw runtime_error(
             "walletpassphrasechange \"oldpassphrase\" \"newpassphrase\"\n"
@@ -2102,7 +2121,7 @@ UniValue walletlock(const UniValue& params, bool fHelp)
 {
     if (!EnsureWalletIsAvailable(fHelp))
         return NullUniValue;
-    
+
     if (pwalletMain->IsCrypted() && (fHelp || params.size() != 0))
         throw runtime_error(
             "walletlock\n"
@@ -2113,7 +2132,7 @@ UniValue walletlock(const UniValue& params, bool fHelp)
             "\nSet the passphrase for 2 minutes to perform a transaction\n"
             + HelpExampleCli("walletpassphrase", "\"my pass phrase\" 120") +
             "\nPerform a send (requires passphrase set)\n"
-            + HelpExampleCli("sendtoaddress", "\"XwnLY9Tf7Zsef8gMGL2fhWA9ZmMjt4KPwg\" 1.0") +
+            + HelpExampleCli("sendtoaddress", "\"DExeHtoRwqNu2SKwmUdJSbbw4T4HYpFe8N\" 1.0") +
             "\nClear the passphrase since we are done before 2 minutes is up\n"
             + HelpExampleCli("walletlock", "") +
             "\nAs json rpc call\n"
@@ -2141,7 +2160,7 @@ UniValue encryptwallet(const UniValue& params, bool fHelp)
 {
     if (!EnsureWalletIsAvailable(fHelp))
         return NullUniValue;
-    
+
     if (!pwalletMain->IsCrypted() && (fHelp || params.size() != 1))
         throw runtime_error(
             "encryptwallet \"passphrase\"\n"
@@ -2191,14 +2210,14 @@ UniValue encryptwallet(const UniValue& params, bool fHelp)
     // slack space in .dat files; that is bad if the old data is
     // unencrypted private keys. So:
     StartShutdown();
-    return "wallet encrypted; neodash server stopping, restart to run with encrypted wallet. The keypool has been flushed, you need to make a new backup.";
+    return "Wallet encrypted; Neodash Core server stopping, restart to run with encrypted wallet. The keypool has been flushed and a new HD seed was generated (if you are using HD). You need to make a new backup.";
 }
 
 UniValue lockunspent(const UniValue& params, bool fHelp)
 {
     if (!EnsureWalletIsAvailable(fHelp))
         return NullUniValue;
-    
+
     if (fHelp || params.size() < 1 || params.size() > 2)
         throw runtime_error(
             "lockunspent unlock [{\"txid\":\"txid\",\"vout\":n},...]\n"
@@ -2282,7 +2301,7 @@ UniValue listlockunspent(const UniValue& params, bool fHelp)
 {
     if (!EnsureWalletIsAvailable(fHelp))
         return NullUniValue;
-    
+
     if (fHelp || params.size() > 0)
         throw runtime_error(
             "listlockunspent\n"
@@ -2331,7 +2350,7 @@ UniValue settxfee(const UniValue& params, bool fHelp)
 {
     if (!EnsureWalletIsAvailable(fHelp))
         return NullUniValue;
-    
+
     if (fHelp || params.size() < 1 || params.size() > 1)
         throw runtime_error(
             "settxfee amount\n"
@@ -2358,7 +2377,7 @@ UniValue getwalletinfo(const UniValue& params, bool fHelp)
 {
     if (!EnsureWalletIsAvailable(fHelp))
         return NullUniValue;
-    
+
     if (fHelp || params.size() != 0)
         throw runtime_error(
             "getwalletinfo\n"
@@ -2371,10 +2390,21 @@ UniValue getwalletinfo(const UniValue& params, bool fHelp)
             "  \"immature_balance\": xxxxxx, (numeric) the total immature balance of the wallet in " + CURRENCY_UNIT + "\n"
             "  \"txcount\": xxxxxxx,         (numeric) the total number of transactions in the wallet\n"
             "  \"keypoololdest\": xxxxxx,    (numeric) the timestamp (seconds since GMT epoch) of the oldest pre-generated key in the key pool\n"
-            "  \"keypoolsize\": xxxx,        (numeric) how many new keys are pre-generated\n"
+            "  \"keypoolsize\": xxxx,        (numeric) how many new keys are pre-generated (only counts external keys)\n"
+            "  \"keypoolsize_hd_internal\": xxxx, (numeric) how many new keys are pre-generated for internal use (used for change outputs, only appears if the wallet is using this feature, otherwise external keys are used)\n"
             "  \"keys_left\": xxxx,          (numeric) how many new keys are left since last automatic backup\n"
             "  \"unlocked_until\": ttt,      (numeric) the timestamp in seconds since epoch (midnight Jan 1 1970 GMT) that the wallet is unlocked for transfers, or 0 if the wallet is locked\n"
             "  \"paytxfee\": x.xxxx,         (numeric) the transaction fee configuration, set in " + CURRENCY_UNIT + "/kB\n"
+            "  \"hdchainid\": \"<hash>\",      (string) the ID of the HD chain\n"
+            "  \"hdaccountcount\": xxx,      (numeric) how many accounts of the HD chain are in this wallet\n"
+            "    [\n"
+            "      {\n"
+            "      \"hdaccountindex\": xxx,         (numeric) the index of the account\n"
+            "      \"hdexternalkeyindex\": xxxx,    (numeric) current external childkey index\n"
+            "      \"hdinternalkeyindex\": xxxx,    (numeric) current internal childkey index\n"
+            "      }\n"
+            "      ,...\n"
+            "    ]\n"
             "}\n"
             "\nExamples:\n"
             + HelpExampleCli("getwalletinfo", "")
@@ -2383,6 +2413,8 @@ UniValue getwalletinfo(const UniValue& params, bool fHelp)
 
     LOCK2(cs_main, pwalletMain->cs_wallet);
 
+    CHDChain hdChainCurrent;
+    bool fHDEnabled = pwalletMain->GetHDChain(hdChainCurrent);
     UniValue obj(UniValue::VOBJ);
     obj.push_back(Pair("walletversion", pwalletMain->GetVersion()));
     obj.push_back(Pair("balance",       ValueFromAmount(pwalletMain->GetBalance())));
@@ -2390,11 +2422,33 @@ UniValue getwalletinfo(const UniValue& params, bool fHelp)
     obj.push_back(Pair("immature_balance",    ValueFromAmount(pwalletMain->GetImmatureBalance())));
     obj.push_back(Pair("txcount",       (int)pwalletMain->mapWallet.size()));
     obj.push_back(Pair("keypoololdest", pwalletMain->GetOldestKeyPoolTime()));
-    obj.push_back(Pair("keypoolsize",   (int)pwalletMain->GetKeyPoolSize()));
+    obj.push_back(Pair("keypoolsize",   (int64_t)pwalletMain->KeypoolCountExternalKeys()));
+    if (fHDEnabled) {
+        obj.push_back(Pair("keypoolsize_hd_internal",   (int64_t)(pwalletMain->KeypoolCountInternalKeys())));
+    }
     obj.push_back(Pair("keys_left",     pwalletMain->nKeysLeftSinceAutoBackup));
     if (pwalletMain->IsCrypted())
         obj.push_back(Pair("unlocked_until", nWalletUnlockTime));
     obj.push_back(Pair("paytxfee",      ValueFromAmount(payTxFee.GetFeePerK())));
+    if (fHDEnabled) {
+        obj.push_back(Pair("hdchainid", hdChainCurrent.GetID().GetHex()));
+        obj.push_back(Pair("hdaccountcount", (int64_t)hdChainCurrent.CountAccounts()));
+        UniValue accounts(UniValue::VARR);
+        for (size_t i = 0; i < hdChainCurrent.CountAccounts(); ++i)
+        {
+            CHDAccount acc;
+            UniValue account(UniValue::VOBJ);
+            account.push_back(Pair("hdaccountindex", (int64_t)i));
+            if(hdChainCurrent.GetAccount(i, acc)) {
+                account.push_back(Pair("hdexternalkeyindex", (int64_t)acc.nExternalChainCounter));
+                account.push_back(Pair("hdinternalkeyindex", (int64_t)acc.nInternalChainCounter));
+            } else {
+                account.push_back(Pair("error", strprintf("account %d is missing", i)));
+            }
+            accounts.push_back(account);
+        }
+        obj.push_back(Pair("hdaccounts", accounts));
+    }
     return obj;
 }
 
@@ -2411,28 +2465,25 @@ UniValue keepass(const UniValue& params, bool fHelp) {
 
     if (strCommand == "genkey")
     {
-        SecureString result;
+        SecureString sResult;
         // Generate RSA key
-        //std::string keePassKey = CKeePassIntegrator::generateKey();
-        //return keePassKey;
         SecureString sKey = CKeePassIntegrator::generateKeePassKey();
-        result = "Generated Key: ";
-        result += sKey;
-        return result.c_str();
+        sResult = "Generated Key: ";
+        sResult += sKey;
+        return sResult.c_str();
     }
     else if(strCommand == "init")
     {
         // Generate base64 encoded 256 bit RSA key and associate with KeePassHttp
-        SecureString result;
+        SecureString sResult;
         SecureString sKey;
-        std::string sId;
-        std::string sErrorMessage;
-        keePassInt.rpcAssociate(sId, sKey);
-        result = "Association successful. Id: ";
-        result += sId.c_str();
-        result += " - Key: ";
-        result += sKey.c_str();
-        return result.c_str();
+        std::string strId;
+        keePassInt.rpcAssociate(strId, sKey);
+        sResult = "Association successful. Id: ";
+        sResult += strId.c_str();
+        sResult += " - Key: ";
+        sResult += sKey.c_str();
+        return sResult.c_str();
     }
     else if(strCommand == "setpassphrase")
     {
@@ -2455,7 +2506,7 @@ UniValue resendwallettransactions(const UniValue& params, bool fHelp)
 {
     if (!EnsureWalletIsAvailable(fHelp))
         return NullUniValue;
-    
+
     if (fHelp || params.size() != 0)
         throw runtime_error(
             "resendwallettransactions\n"
@@ -2465,9 +2516,12 @@ UniValue resendwallettransactions(const UniValue& params, bool fHelp)
             "Returns array of transaction ids that were re-broadcast.\n"
             );
 
+    if (!g_connman)
+        throw JSONRPCError(RPC_CLIENT_P2P_DISABLED, "Error: Peer-to-peer functionality missing or disabled");
+
     LOCK2(cs_main, pwalletMain->cs_wallet);
 
-    std::vector<uint256> txids = pwalletMain->ResendWalletTransactionsBefore(GetTime());
+    std::vector<uint256> txids = pwalletMain->ResendWalletTransactionsBefore(GetTime(), g_connman.get());
     UniValue result(UniValue::VARR);
     BOOST_FOREACH(const uint256& txid, txids)
     {
@@ -2480,10 +2534,10 @@ UniValue listunspent(const UniValue& params, bool fHelp)
 {
     if (!EnsureWalletIsAvailable(fHelp))
         return NullUniValue;
-    
+
     if (fHelp || params.size() > 3)
         throw runtime_error(
-            "listunspent ( minconf maxconf  [\"address\",...] )\n"
+            "listunspent ( minconf maxconf [\"address\",...] )\n"
             "\nReturns array of unspent transaction outputs\n"
             "with between minconf and maxconf (inclusive) confirmations.\n"
             "Optionally filter to only include txouts paid to specified addresses.\n"
@@ -2492,29 +2546,32 @@ UniValue listunspent(const UniValue& params, bool fHelp)
             "\nArguments:\n"
             "1. minconf          (numeric, optional, default=1) The minimum confirmations to filter\n"
             "2. maxconf          (numeric, optional, default=9999999) The maximum confirmations to filter\n"
-            "3. \"addresses\"    (string) A json array of neodash addresses to filter\n"
+            "3. \"addresses\"      (string) A json array of neodash addresses to filter\n"
             "    [\n"
-            "      \"address\"   (string) neodash address\n"
+            "      \"address\"     (string) neodash address\n"
             "      ,...\n"
             "    ]\n"
             "\nResult\n"
-            "[                   (array of json object)\n"
+            "[                             (array of json object)\n"
             "  {\n"
-            "    \"txid\" : \"txid\",        (string) the transaction id \n"
+            "    \"txid\" : \"txid\",          (string) the transaction id \n"
             "    \"vout\" : n,               (numeric) the vout value\n"
-            "    \"address\" : \"address\",  (string) the neodash address\n"
-            "    \"account\" : \"account\",  (string) DEPRECATED. The associated account, or \"\" for the default account\n"
-            "    \"scriptPubKey\" : \"key\", (string) the script key\n"
+            "    \"address\" : \"address\",    (string) the neodash address\n"
+            "    \"account\" : \"account\",    (string) DEPRECATED. The associated account, or \"\" for the default account\n"
+            "    \"scriptPubKey\" : \"key\",   (string) the script key\n"
             "    \"amount\" : x.xxx,         (numeric) the transaction amount in " + CURRENCY_UNIT + "\n"
             "    \"confirmations\" : n       (numeric) The number of confirmations\n"
+            "    \"ps_rounds\" : n           (numeric) The number of PS round\n"
+            "    \"spendable\" : xxx,        (bool) Whether we have the private keys to spend this output\n"
+            "    \"solvable\" : xxx          (bool) Whether we know how to spend this output, ignoring the lack of keys\n"
             "  }\n"
             "  ,...\n"
             "]\n"
 
             "\nExamples\n"
             + HelpExampleCli("listunspent", "")
-            + HelpExampleCli("listunspent", "6 9999999 \"[\\\"1PGFqEzfmQch1gKD3ra4k18PNj3tTUUSqg\\\",\\\"1LtvqCaApEdUGFkpKMM4MstjcaL4dKg8SP\\\"]\"")
-            + HelpExampleRpc("listunspent", "6, 9999999 \"[\\\"1PGFqEzfmQch1gKD3ra4k18PNj3tTUUSqg\\\",\\\"1LtvqCaApEdUGFkpKMM4MstjcaL4dKg8SP\\\"]\"")
+            + HelpExampleCli("listunspent", "6 9999999 \"[\\\"DExeHtoRwqNu2SKwmUdJSbbw4T4HYpFe8N\\\",\\\"XuQQkwA4FYkq2XERzMY2CiAZhJTEDAbtcg\\\"]\"")
+            + HelpExampleRpc("listunspent", "6, 9999999 \"[\\\"DExeHtoRwqNu2SKwmUdJSbbw4T4HYpFe8N\\\",\\\"XuQQkwA4FYkq2XERzMY2CiAZhJTEDAbtcg\\\"]\"")
         );
 
     RPCTypeCheck(params, boost::assign::list_of(UniValue::VNUM)(UniValue::VNUM)(UniValue::VARR));
@@ -2582,7 +2639,9 @@ UniValue listunspent(const UniValue& params, bool fHelp)
         }
         entry.push_back(Pair("amount",ValueFromAmount(nValue)));
         entry.push_back(Pair("confirmations",out.nDepth));
+        entry.push_back(Pair("ps_rounds", pwalletMain->GetOutpointPrivateSendRounds(COutPoint(out.tx->GetHash(), out.i))));
         entry.push_back(Pair("spendable", out.fSpendable));
+        entry.push_back(Pair("solvable", out.fSolvable));
         results.push_back(entry);
     }
 
@@ -2604,6 +2663,7 @@ UniValue fundrawtransaction(const UniValue& params, bool fHelp)
                             "Note that all existing inputs must have their previous output transaction be in the wallet.\n"
                             "Note that all inputs selected must be of standard form and P2SH scripts must be"
                             "in the wallet using importaddress or addmultisigaddress (to calculate fees).\n"
+                            "You can see whether this is the case by checking the \"solvable\" field in the listunspent output.\n"
                             "Only pay-to-pubkey, multisig, and P2SH versions thereof are currently supported for watch-only\n"
                             "\nArguments:\n"
                             "1. \"hexstring\"     (string, required) The hex string of the raw transaction\n"

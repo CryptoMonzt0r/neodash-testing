@@ -1,7 +1,7 @@
-TOR SUPPORT IN NEODASH
+TOR SUPPORT IN NEODASH CORE
 =======================
 
-It is possible to run Neodash as a Tor hidden service, and connect to such services.
+It is possible to run Neodash Core as a Tor hidden service, and connect to such services.
 
 The following directions assume you have a Tor proxy running on port 9050. Many
 distributions default to having a SOCKS proxy listening on port 9050, but others
@@ -10,10 +10,10 @@ port. See [Tor Project FAQ:TBBSocksPort](https://www.torproject.org/docs/faq.htm
 for how to properly configure Tor.
 
 
-1. Run neodash behind a Tor proxy
+1. Run Neodash Core behind a Tor proxy
 ----------------------------------
 
-The first step is running Neodash behind a Tor proxy. This will already make all
+The first step is running Neodash Core behind a Tor proxy. This will already make all
 outgoing connections be anonymized, but more is possible.
 
 	-proxy=ip:port  Set the proxy server. If SOCKS5 is selected (default), this proxy
@@ -44,25 +44,25 @@ In a typical situation, this suffices to run behind a Tor proxy:
 	./neodashd -proxy=127.0.0.1:9050
 
 
-2. Run a neodash hidden server
+2. Run a Neodash Core hidden server
 -------------------------------
 
 If you configure your Tor system accordingly, it is possible to make your node also
 reachable from the Tor network. Add these lines to your /etc/tor/torrc (or equivalent
 config file):
 
-	HiddenServiceDir /var/lib/tor/neodash-service/
-	HiddenServicePort 7135 127.0.0.1:7135
-	HiddenServicePort 17135 127.0.0.1:17135
+	HiddenServiceDir /var/lib/tor/neodashcore-service/
+	HiddenServicePort 9915 127.0.0.1:9915
+	HiddenServicePort 19915 127.0.0.1:19915
 
 The directory can be different of course, but (both) port numbers should be equal to
-your neodashd's P2P listen port (7135 by default).
+your neodashd's P2P listen port (9915 by default).
 
-	-externalip=X   You can tell neodash about its publicly reachable address using
+	-externalip=X   You can tell Neodash Core about its publicly reachable address using
 	                this option, and this can be a .onion address. Given the above
 	                configuration, you can find your onion address in
-	                /var/lib/tor/neodash-service/hostname. Onion addresses are given
-	                preference for your node to advertize itself with, for connections
+	                /var/lib/tor/neodashcore-service/hostname. Onion addresses are given
+	                preference for your node to advertise itself with, for connections
 	                coming from unroutable addresses (such as 127.0.0.1, where the
 	                Tor proxy typically runs).
 
@@ -91,7 +91,7 @@ as well, use `discover` instead:
 
 	./neodashd ... -discover
 
-and open port 7135 on your firewall (or use -upnp).
+and open port 9915 on your firewall (or use -upnp).
 
 If you only want to use Tor to reach onion addresses, but not use it as a proxy
 for normal IPv4/IPv6 communication, use:
@@ -99,7 +99,7 @@ for normal IPv4/IPv6 communication, use:
 	./neodashd -onion=127.0.0.1:9050 -externalip=ssapp53tmftyjmjb.onion -discover
 
 
-3. List of known neodash Tor relays
+3. List of known Neodash Core Tor relays
 ------------------------------------
 
 * [darkcoinie7ghp67.onion](http://darkcoinie7ghp67.onion/)
